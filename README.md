@@ -1,4 +1,4 @@
-# Calendar QA System
+# Paracal (Calendar Reminder) System
 
 A full-stack calendar application for managing employees, events, holidays, and automated notifications.
 
