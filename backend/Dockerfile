@@ -1,35 +1,22 @@
-# Backend Dockerfile
-FROM oven/bun:1-alpine AS base
+# Backend Dockerfile (uses pre-built dist from local machine)
+FROM oven/bun:1-alpine
 WORKDIR /app
 
-# Install dependencies
-FROM base AS deps
-RUN apk add --no-cache python3 make g++
+# Copy pre-built files from local machine
+COPY dist ./dist
+COPY src ./src
 COPY package*.json bun.lock* ./
-RUN bun install --frozen-lockfile --production
+COPY index.ts ./
+COPY prisma ./prisma
 
-# Build the application
-FROM base AS build
+# Install build tools for native modules (better-sqlite3)
 RUN apk add --no-cache python3 make g++
-COPY package*.json bun.lock* ./
-RUN bun install --frozen-lockfile
-COPY . .
-RUN bun run build
 
-# Production image
-FROM base AS production
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/src ./src
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/index.ts ./
-COPY --from=build /app/prisma ./prisma
+# Install production dependencies only
+RUN bun install --no-save
 
-# Create logs and data directories with proper permissions
+# Create logs and data directories
 RUN mkdir -p logs data && chmod 755 logs data
 
-# Expose port
 EXPOSE 3001
-
-# Run the application
 CMD ["bun", "start"]

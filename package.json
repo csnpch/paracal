@@ -4,15 +4,16 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
+    "dev:backend": "cd backend && bun dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "build": "concurrently \"npm run build:backend\" \"npm run build:frontend\"",
-    "build:backend": "cd backend && npm run build",
-    "build:frontend": "cd frontend && npm run build",
-    "test": "concurrently \"npm run test:backend\" \"npm run test:frontend\"",
-    "test:backend": "cd backend && npm run test",
-    "test:frontend": "cd frontend && npm run lint",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+    "install:all": "cd backend && bun install && cd ../frontend && npm install",
+    "build:backend": "cd backend && bun install && bun run build",
+    "build:frontend": "cd frontend && npm install && VITE_API_BASE_URL=http://34.56.225.220:3000 npm run build",
+    "gcp:build-code": "npm run build:backend && npm run build:frontend",
+    "gcp:build-image": "docker build --platform linux/amd64 -t calendar-backend ./backend && docker build --platform linux/amd64 -t calendar-frontend ./frontend",
+    "gcp:tag": "docker tag calendar-backend chtisanuphongcha/calendar-backend:latest && docker tag calendar-frontend chtisanuphongcha/calendar-frontend:latest",
+    "gcp:push": "docker push chtisanuphongcha/calendar-backend:latest && docker push chtisanuphongcha/calendar-frontend:latest",
+    "gcp:release": "npm run gcp:build-code && npm run gcp:build-image && npm run gcp:tag && npm run gcp:push"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
