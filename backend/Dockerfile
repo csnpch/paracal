@@ -1,17 +1,20 @@
 # Backend Dockerfile (uses pre-built dist from local machine)
 FROM oven/bun:1-alpine
-WORKDIR /app
 
-# Copy pre-built files from local machine
+# Replicate original project structure so relative imports work
+# Original: project-root/backend/src/services -> ../../../shared = project-root/shared
+WORKDIR /app/backend
+
+# Copy backend files
 COPY backend/dist ./dist
 COPY backend/src ./src
 COPY backend/package*.json ./
 COPY backend/index.ts ./
 
-# Copy shared modules (used by backend services)
-COPY shared ./shared
+# Copy shared modules at the correct relative path
+COPY shared /app/shared
 
-# Install production dependencies only (skip devDependencies like better-sqlite3)
+# Install production dependencies only
 RUN bun install --ignore-scripts --no-save
 
 # Create logs and data directories

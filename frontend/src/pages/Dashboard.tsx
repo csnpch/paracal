@@ -9,7 +9,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getDashboardSummary, DashboardSummary } from '@/services/api';
-import { LEAVE_TYPE_LABELS, getLeaveTypeColor } from '@/lib/utils';
+import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS } from '@/lib/utils';
 import { Layout } from '@/components/Layout';
 import { UserDetailsModal } from '@/components/UserDetailsModal';
 
@@ -346,7 +346,15 @@ const Dashboard = () => {
                       <div className="flex flex-wrap gap-1">
                         {Object.entries(employee.eventTypes).map(([type, count]) => (
                           count > 0 && (
-                            <Badge key={type} className={getLeaveTypeColor(type as any)}>
+                            <Badge
+                              key={type}
+                              variant="outline"
+                              style={{
+                                backgroundColor: `${LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other}20`,
+                                borderColor: LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other,
+                                color: LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other
+                              }}
+                            >
                               {LEAVE_TYPE_LABELS[type as keyof typeof LEAVE_TYPE_LABELS] || type}: {count}
                             </Badge>
                           )

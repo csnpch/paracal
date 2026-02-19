@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, Clock, User, TrendingUp } from 'lucide-react';
 import { getEventsByEmployee, EmployeeEvent } from '@/services/api';
-import { LEAVE_TYPE_LABELS, getLeaveTypeColor } from '@/lib/utils';
+import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS } from '@/lib/utils';
 
 interface UserDetailsModalProps {
   isOpen: boolean;
@@ -223,7 +223,14 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                                         </p>
                                                       )}
                                                     </div>
-                                                    <Badge className={getLeaveTypeColor(event.leaveType as any)}>
+                                                    <Badge
+                                                      variant="outline"
+                                                      style={{
+                                                        backgroundColor: `${LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other}20`,
+                                                        borderColor: LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other,
+                                                        color: LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other
+                                                      }}
+                                                    >
                                                       {LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}
                                                     </Badge>
                                                   </div>
