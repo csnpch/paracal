@@ -1,5 +1,5 @@
 {
-  "name": "calendar-qa",
+  "name": "paracal",
   "private": true,
   "version": "1.0.0",
   "scripts": {
@@ -10,10 +10,11 @@
     "build:backend": "cd backend && bun install && bun run build",
     "build:frontend": "cd frontend && npm install && VITE_API_BASE_URL=http://34.56.225.220:3000 npm run build",
     "gcp:build-code": "npm run build:backend && npm run build:frontend",
-    "gcp:build-image": "docker build --platform linux/amd64 -t calendar-backend ./backend && docker build --platform linux/amd64 -t calendar-frontend ./frontend",
-    "gcp:tag": "docker tag calendar-backend chtisanuphongcha/calendar-backend:latest && docker tag calendar-frontend chtisanuphongcha/calendar-frontend:latest",
-    "gcp:push": "docker push chtisanuphongcha/calendar-backend:latest && docker push chtisanuphongcha/calendar-frontend:latest",
-    "gcp:release": "npm run gcp:build-code && npm run gcp:build-image && npm run gcp:tag && npm run gcp:push"
+    "gcp:build-image": "docker build --platform linux/amd64 -t paracal-backend ./backend && docker build --platform linux/amd64 -t paracal-frontend ./frontend",
+    "gcp:tag": "docker tag paracal-backend chtisanuphongcha/paracal-backend:latest && docker tag paracal-frontend chtisanuphongcha/paracal-frontend:latest",
+    "gcp:push": "docker push chtisanuphongcha/paracal-backend:latest && docker push chtisanuphongcha/paracal-frontend:latest",
+    "gcp:release": "npm run gcp:build-code && npm run gcp:build-image && npm run gcp:tag && npm run gcp:push",
+    "gcp:serve": "docker compose -f docker-compose.gcp.yml down && docker compose -f docker-compose.gcp.yml pull && docker compose -f docker-compose.gcp.yml up -d"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

@@ -59,16 +59,16 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
     try {
       setLoading(true);
       setError(null);
-      
+
       const params: any = {
         employeeName: employeeName,
       };
-      
+
       if (dateRange) {
         params.startDate = dateRange.from;
         params.endDate = dateRange.to;
       }
-      
+
       const eventData = await getEventsByEmployee(params);
       setEvents(eventData);
     } catch (err) {
@@ -86,7 +86,7 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
     const year = eventDate.getFullYear().toString();
     const month = eventDate.toLocaleDateString('th-TH', { month: 'long' });
     const date = dateToUse;
-    
+
     if (!groups[year]) {
       groups[year] = {};
     }
@@ -96,14 +96,14 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
     if (!groups[year][month][date]) {
       groups[year][month][date] = [];
     }
-    
+
     groups[year][month][date].push(event);
     return groups;
   }, {});
 
   // Sort years, months, and dates
   const sortedYears = Object.keys(groupedEvents).sort((a, b) => parseInt(b) - parseInt(a));
-  
+
   const getSortedMonths = (year: string) => {
     const months = Object.keys(groupedEvents[year]);
     return months.sort((a, b) => {
@@ -114,9 +114,9 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
       return monthsOrder.indexOf(b) - monthsOrder.indexOf(a);
     });
   };
-  
+
   const getSortedDates = (year: string, month: string) => {
-    return Object.keys(groupedEvents[year][month]).sort((a, b) => 
+    return Object.keys(groupedEvents[year][month]).sort((a, b) =>
       new Date(b).getTime() - new Date(a).getTime()
     );
   };
@@ -130,7 +130,7 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
             รายละเอียดของ {employeeName}
           </DialogTitle>
         </DialogHeader>
-        
+
         {employeeData && (
           <div className="space-y-4">
             {/* Timeline */}
@@ -139,20 +139,20 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                 <Clock className="h-4 w-4" />
                 เส้นเวลาเหตุการณ์
               </h4>
-              
+
               <ScrollArea className="h-[75vh] w-full">
                 {loading && (
                   <div className="flex justify-center py-8">
                     <div className="text-gray-500">กำลังโหลดข้อมูล...</div>
                   </div>
                 )}
-                
+
                 {error && (
                   <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                     เกิดข้อผิดพลาด: {error}
                   </div>
                 )}
-                
+
                 {!loading && !error && (
                   <div className="space-y-2 pr-4">
                     {sortedYears.length === 0 ? (
@@ -190,25 +190,25 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                           {formatDate(date)}
                                         </div>
                                       </div>
-                                      
+
                                       {/* Events for this date */}
                                       <div className="ml-4 space-y-1">
                                         {groupedEvents[year][month][date].map((event, eventIndex) => {
-                                          const isLastEvent = yearIndex === sortedYears.length - 1 && 
-                                                             monthIndex === getSortedMonths(year).length - 1 && 
-                                                             dateIndex === getSortedDates(year, month).length - 1 && 
-                                                             eventIndex === groupedEvents[year][month][date].length - 1;
-                                          
+                                          const isLastEvent = yearIndex === sortedYears.length - 1 &&
+                                            monthIndex === getSortedMonths(year).length - 1 &&
+                                            dateIndex === getSortedDates(year, month).length - 1 &&
+                                            eventIndex === groupedEvents[year][month][date].length - 1;
+
                                           return (
                                             <div key={event.id} className="relative">
                                               {/* Timeline line */}
                                               {!isLastEvent && (
                                                 <div className="absolute left-2 top-6 w-0.5 h-full bg-gray-200 dark:bg-gray-600" />
                                               )}
-                                              
+
                                               {/* Timeline dot */}
                                               <div className="absolute left-0 top-2 w-4 h-4 bg-blue-500 border-2 border-white dark:border-gray-800 rounded-full" />
-                                              
+
                                               {/* Event content */}
                                               <div className="ml-6 pb-2">
                                                 <div className="bg-gray-50 dark:bg-gray-700 p-2 rounded-lg">
@@ -223,7 +223,7 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                                         </p>
                                                       )}
                                                     </div>
-                                                    <Badge variant="secondary" className={getLeaveTypeColor(event.leaveType)}>
+                                                    <Badge className={getLeaveTypeColor(event.leaveType as any)}>
                                                       {LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}
                                                     </Badge>
                                                   </div>

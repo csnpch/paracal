@@ -49,7 +49,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
   const handleAddHoliday = () => {
     setHolidayDate(selectedDate);
     onHolidayDialogChange?.(true, selectedDate);
-    
+
     setTimeout(() => {
       onOpenChange(false);
     }, 50);
@@ -61,8 +61,8 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const formatted = `${year}-${month}-${day}`;
-    console.log('Formatting date for API:', { 
-      original: date, 
+    console.log('Formatting date for API:', {
+      original: date,
       year,
       month: date.getMonth() + 1,
       day: date.getDate(),
@@ -73,7 +73,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
 
   const handleSaveHoliday = async () => {
     console.log('Saving holiday:', { holidayDate, holidayName: holidayName.trim() }); // Debug log
-    
+
     if (!holidayDate) {
       toast({
         title: "ข้อผิดพลาด",
@@ -82,7 +82,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
       });
       return;
     }
-    
+
     if (!holidayName.trim()) {
       toast({
         title: "ข้อผิดพลาด",
@@ -108,7 +108,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
       setHolidayDate(null);
       setHolidayName('');
       setHolidayDescription('');
-      
+
       if (onHolidayAdded) {
         onHolidayAdded();
       }
@@ -140,9 +140,9 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
             <div className="mb-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(selectedDate)}</p>
             </div>
-            
+
             <div className="space-y-2">
-              <Button 
+              <Button
                 onClick={handleCreateEvent}
                 className="w-full justify-start text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
                 variant="ghost"
@@ -150,9 +150,9 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
                 <Plus className="w-4 h-4 mr-2" />
                 สร้างเหตุการณ์ใหม่
               </Button>
-              
+
               {isAdminAuthenticated && !isRangeSelection && (
-                <Button 
+                <Button
                   onClick={handleAddHoliday}
                   className="w-full justify-start text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100"
                   variant="ghost"
@@ -166,23 +166,23 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
         </PopoverContent>
       </Popover>
 
-      
+
       {/* Holiday modal */}
       {showHolidayDialog && (
-        <div 
+        <div
           style={{
-            position: 'fixed !important',
-            top: '0 !important',
-            left: '0 !important',
-            right: '0 !important',
-            bottom: '0 !important',
-            backgroundColor: 'rgba(255, 0, 0, 0.8) !important',
-            zIndex: '999999 !important',
-            display: 'flex !important',
-            alignItems: 'center !important',
-            justifyContent: 'center !important',
-            visibility: 'visible !important',
-            opacity: '1 !important'
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255, 0, 0, 0.8)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            visibility: 'visible',
+            opacity: 1
           }}
           onClick={() => {
             onHolidayDialogChange?.(false);
@@ -191,8 +191,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
             setHolidayDescription('');
           }}
         >
-          {console.log('Modal backdrop is rendering!')}
-          <div 
+          <div
             style={{
               backgroundColor: 'white !important',
               padding: '24px !important',
@@ -204,15 +203,14 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {console.log('Modal content is rendering!')}
-            <h2 style={{marginBottom: '16px', fontSize: '18px', fontWeight: 'bold'}}>
+            <h2 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: 'bold' }}>
               เพิ่มวันหยุดบริษัท
             </h2>
-            <p style={{marginBottom: '16px', color: '#666'}}>
+            <p style={{ marginBottom: '16px', color: '#666' }}>
               วันที่: {formatDate(holidayDate)}
             </p>
-            <div style={{marginBottom: '16px'}}>
-              <label style={{display: 'block', marginBottom: '8px'}}>ชื่อวันหยุด:</label>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px' }}>ชื่อวันหยุด:</label>
               <input
                 type="text"
                 value={holidayName}
@@ -226,8 +224,8 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
                 }}
               />
             </div>
-            <div style={{marginBottom: '16px'}}>
-              <label style={{display: 'block', marginBottom: '8px'}}>คำอธิบาย:</label>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px' }}>คำอธิบาย:</label>
               <input
                 type="text"
                 value={holidayDescription}
@@ -241,7 +239,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
                 }}
               />
             </div>
-            <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => {
                   onHolidayDialogChange?.(false);

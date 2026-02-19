@@ -3,7 +3,7 @@ import { Navbar } from './Navbar';
 
 interface LayoutProps {
   children: React.ReactNode;
-  currentPage?: 'calendar-events' | 'dashboard' | 'employees' | 'cronjob-config';
+  currentPage?: 'calendar-events' | 'dashboard' | 'employees' | 'cronjob-config' | 'company-holidays' | 'events-management';
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage = 'calendar-events' }) => {
@@ -16,7 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage = 'calenda
       <footer className="-mt-3 -mr-3 flex flex-col items-end pt-8 pb-4 px-6 text-xs text-gray-500 dark:text-gray-400">
         <p>Version 2.0</p>
         <p>
-        ©2025 loveable x claude x cursor agent x chitsanuphong.cha. All rights reserved
+          ©2025 loveable x claude x cursor agent x chitsanuphong.cha. All rights reserved
         </p>
       </footer>
     </div>

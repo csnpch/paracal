@@ -1,34 +1,37 @@
 services:
   backend:
-    image: chtisanuphongcha/calendar-backend:latest
-    container_name: calendar-backend
+    image: chtisanuphongcha/paracal-backend:latest
+    container_name: paracal-backend
     ports:
       - "3000:3001"
     volumes:
-      - calendar-data:/app/data
-      - calendar-logs:/app/logs
+      - paracal-data:/app/data
+      - paracal-logs:/app/logs
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/calendar.db
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-!C@len12}
+      - CALENDARIFIC_API_KEY=${CALENDARIFIC_API_KEY:-}
+      - APP_URL=${APP_URL:-http://localhost:8080}
     restart: unless-stopped
     networks:
-      - calendar-network
+      - paracal-network
 
   frontend:
-    image: chtisanuphongcha/calendar-frontend:latest
-    container_name: calendar-frontend
+    image: chtisanuphongcha/paracal-frontend:latest
+    container_name: paracal-frontend
     ports:
       - "80:80"
     depends_on:
       - backend
     restart: unless-stopped
     networks:
-      - calendar-network
+      - paracal-network
 
 networks:
-  calendar-network:
+  paracal-network:
     driver: bridge
 
 volumes:
-  calendar-data:
-  calendar-logs:
+  paracal-data:
+  paracal-logs:

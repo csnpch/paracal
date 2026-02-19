@@ -5,13 +5,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminLoginModal } from './AdminLoginModal';
-import { 
-  CalendarDays, 
-  Building2, 
-  Users, 
-  Settings, 
+import {
+  CalendarDays,
+  Building2,
+  Users,
+  Settings,
   MoreVertical,
-  Moon, 
+  Moon,
   Sun,
   Shield,
   LayoutDashboard,
@@ -51,9 +51,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
             <div className="p-1.5 sm:p-2 md:p-3 bg-blue-100 dark:bg-gray-700 rounded-lg">
               <Building2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600 dark:text-gray-200" />
             </div>
-            <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-900 dark:text-white">Calendar QA</h1>
+            <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-900 dark:text-white">Paracal</h1>
           </Button>
-          
+
           {/* Navigation Menu */}
           <div className="flex items-center gap-4">
             <nav className="hidden md:flex items-center gap-6">
@@ -78,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                 </>
               )}
             </nav>
-            
+
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -93,16 +93,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                 <DropdownMenuContent align="end" className="p-2">
                   {!isAdminAuthenticated ? (
                     <>
-                      <DropdownMenuItem 
-                        onClick={() => navigate('/company-holidays')} 
+                      <DropdownMenuItem
+                        onClick={() => navigate('/company-holidays')}
                         className="px-4 py-3"
                       >
                         <Calendar className="w-4 h-4 mr-2" />
                         วันหยุดบริษัท
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => setShowLoginModal(true)} 
+                      <DropdownMenuItem
+                        onClick={() => setShowLoginModal(true)}
                         className="px-4 py-3"
                       >
                         <Shield className="w-4 h-4 mr-2" />
@@ -111,29 +111,29 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                     </>
                   ) : (
                     <>
-                      <DropdownMenuItem 
-                        onClick={() => navigate('/company-holidays')} 
+                      <DropdownMenuItem
+                        onClick={() => navigate('/company-holidays')}
                         className="px-4 py-3"
                       >
                         <Calendar className="w-4 h-4 mr-2" />
                         วันหยุดบริษัท
                       </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => navigate('/events-management')} 
+                      <DropdownMenuItem
+                        onClick={() => navigate('/events-management')}
                         className="px-4 py-3"
                       >
                         <FileText className="w-4 h-4 mr-2" />
                         จัดการเหตุการณ์
                       </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => navigate('/employees')} 
+                      <DropdownMenuItem
+                        onClick={() => navigate('/employees')}
                         className="px-4 py-3"
                       >
                         <Users className="w-4 h-4 mr-2" />
                         จัดการพนักงาน
                       </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => navigate('/cronjob-config')} 
+                      <DropdownMenuItem
+                        onClick={() => navigate('/cronjob-config')}
                         className="px-4 py-3"
                       >
                         <Settings className="w-4 h-4 mr-2" />
@@ -148,15 +148,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              
+
               <Button
                 variant="outline"
                 size="sm"
                 onClick={toggleTheme}
                 className="p-2 text-gray-500 hover:text-gray-700 dark:text-white dark:hover:text-gray-300 border-gray-200 dark:border-gray-600"
               >
-                {theme === 'dark' ? 
-                  <Sun className="w-4 h-4" /> : 
+                {theme === 'dark' ?
+                  <Sun className="w-4 h-4" /> :
                   <Moon className="w-4 h-4" />
                 }
               </Button>
@@ -164,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
           </div>
         </div>
       </div>
-      
+
       <AdminLoginModal
         key={showLoginModal ? 'open' : 'closed'}
         isOpen={showLoginModal}

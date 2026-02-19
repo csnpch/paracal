@@ -1,94 +1,78 @@
 import { Elysia, t } from 'elysia';
 import { CompanyHolidayService } from '../services/companyHolidayService';
+import Logger from '../utils/logger';
 
 const companyHolidayService = new CompanyHolidayService();
 
 export const companyHolidaysRoutes = new Elysia({ prefix: '/company-holidays' })
-  .get('/', async () => {
-    return await companyHolidayService.getAllCompanyHolidays();
+  .get('/', () => {
+    return companyHolidayService.getAllCompanyHolidays();
   })
 
-  .get('/:year', async ({ params: { year } }) => {
-    return await companyHolidayService.getCompanyHolidaysByYear(Number(year));
-  }, {
-    params: t.Object({
-      year: t.String()
-    })
-  })
+  .get('/:year', ({ params: { year } }) => {
+    return companyHolidayService.getCompanyHolidaysByYear(Number(year));
+  }, { params: t.Object({ year: t.String() }) })
 
-  .get('/holiday/:id', async ({ params: { id } }) => {
-    const holiday = await companyHolidayService.getCompanyHolidayById(Number(id));
-    if (!holiday) {
-      throw new Error('Company holiday not found');
-    }
+  .get('/holiday/:id', ({ params: { id } }) => {
+    const holiday = companyHolidayService.getCompanyHolidayById(Number(id));
+    if (!holiday) throw new Error('Company holiday not found');
     return holiday;
-  }, {
-    params: t.Object({
-      id: t.String()
-    })
-  })
+  }, { params: t.Object({ id: t.String() }) })
 
-  .post('/', async ({ body }) => {
-    return await companyHolidayService.createCompanyHoliday(body);
+  .post('/', ({ body }) => {
+    Logger.info(`Creating company holiday: ${body.name} on ${body.date}`);
+    return companyHolidayService.createCompanyHoliday(body);
   }, {
     body: t.Object({
       name: t.String(),
       date: t.String(),
-      description: t.Optional(t.String())
-    })
+      description: t.Optional(t.String()),
+    }),
   })
 
-  .post('/bulk', async ({ body }) => {
-    return await companyHolidayService.createMultipleCompanyHolidays(body.holidays);
+  .post('/bulk', ({ body }) => {
+    Logger.info(`Creating ${body.holidays.length} company holidays`);
+    return companyHolidayService.createMultipleCompanyHolidays(body.holidays);
   }, {
     body: t.Object({
       holidays: t.Array(t.Object({
         name: t.String(),
         date: t.String(),
-        description: t.Optional(t.String())
-      }))
-    })
+        description: t.Optional(t.String()),
+      })),
+    }),
   })
 
-  .put('/:id', async ({ params: { id }, body }) => {
-    return await companyHolidayService.updateCompanyHoliday(Number(id), body);
+  .put('/:id', ({ params: { id }, body }) => {
+    const holiday = companyHolidayService.updateCompanyHoliday(Number(id), body);
+    if (!holiday) throw new Error('Company holiday not found');
+    Logger.info(`Updated company holiday ${id}`);
+    return holiday;
   }, {
-    params: t.Object({
-      id: t.String()
-    }),
+    params: t.Object({ id: t.String() }),
     body: t.Object({
       name: t.Optional(t.String()),
       date: t.Optional(t.String()),
-      description: t.Optional(t.String())
-    })
+      description: t.Optional(t.String()),
+    }),
   })
 
-  .delete('/:id', async ({ params: { id } }) => {
-    return await companyHolidayService.deleteCompanyHoliday(Number(id));
-  }, {
-    params: t.Object({
-      id: t.String()
-    })
+  .delete('/clear-all', () => {
+    Logger.info('Clearing all company holidays');
+    return companyHolidayService.deleteAllCompanyHolidays();
   })
 
-  .get('/range/:startDate/:endDate', async ({ params: { startDate, endDate } }) => {
-    return await companyHolidayService.getCompanyHolidaysForDateRange(startDate, endDate);
-  }, {
-    params: t.Object({
-      startDate: t.String(),
-      endDate: t.String()
-    })
-  })
+  .delete('/:id', ({ params: { id } }) => {
+    const success = companyHolidayService.deleteCompanyHoliday(Number(id));
+    if (!success) throw new Error('Company holiday not found');
+    Logger.info(`Deleted company holiday ${id}`);
+    return { success: true };
+  }, { params: t.Object({ id: t.String() }) })
 
-  .get('/check/:date', async ({ params: { date } }) => {
-    const isHoliday = await companyHolidayService.isCompanyHoliday(date);
-    return { date, isHoliday };
-  }, {
-    params: t.Object({
-      date: t.String()
-    })
-  })
+  .get('/range/:startDate/:endDate', ({ params: { startDate, endDate } }) => {
+    return companyHolidayService.getCompanyHolidaysForDateRange(startDate, endDate);
+  }, { params: t.Object({ startDate: t.String(), endDate: t.String() }) })
 
-  .delete('/clear-all', async () => {
-    return await companyHolidayService.deleteAllCompanyHolidays();
-  });
+  .get('/check/:date', ({ params: { date } }) => {
+    return { date, isHoliday: companyHolidayService.isCompanyHoliday(date) };
+  }, { params: t.Object({ date: t.String() }) });

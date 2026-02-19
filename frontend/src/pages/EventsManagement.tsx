@@ -13,6 +13,8 @@ import { getApiDatabase, Event, Employee } from '@/services/apiDatabase';
 import { EventModal } from '@/components/EventModal';
 import { Trash2, AlertTriangle, ChevronLeft, ChevronRight, X, Search, Calendar as CalendarIcon, Edit } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { LEAVE_TYPE_LABELS } from '@/lib/utils';
+import type { LeaveType } from '@/lib/utils';
 import moment from 'moment';
 
 const EventsManagement = () => {
@@ -23,21 +25,21 @@ const EventsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [eventsPerPage, setEventsPerPage] = useState(10);
-  
+
   // Search and filter state
   const [searchEmployee, setSearchEmployee] = useState('');
   const [searchEmployeeInput, setSearchEmployeeInput] = useState('');
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
-  
+
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
-  
+
   // Selection state
   const [selectedEvents, setSelectedEvents] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
-  
+
   // Bulk delete state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteOption, setDeleteOption] = useState<'month' | 'year' | 'all'>('month');
@@ -67,7 +69,7 @@ const EventsManagement = () => {
         apiDb.getAllEvents(),
         apiDb.getAllEmployees()
       ]);
-      
+
       setEvents(eventsData || []);
       setEmployees(employeesData || []);
     } catch (error) {
@@ -91,40 +93,40 @@ const EventsManagement = () => {
       filtered = filtered.filter(event => {
         // Get employee name
         const employeeName = getEmployeeName(event.employeeId).toLowerCase();
-        
+
         // Get leave type in Thai
         const leaveTypeThai = getLeaveTypeName(event.leaveType).toLowerCase();
-        
+
         // Get formatted dates
         const startDate = formatDate(event.startDate);
         const endDate = formatDate(event.endDate);
-        
+
         // Get raw dates for additional search options
         const rawStartDate = event.startDate; // YYYY-MM-DD format
         const rawEndDate = event.endDate;
-        
+
         // Get month/year variations
         const startYear = moment(event.startDate).format('YYYY');
         const endYear = moment(event.endDate).format('YYYY');
         const startMonth = moment(event.startDate).format('MM');
         const endMonth = moment(event.endDate).format('MM');
-        
+
         // Get description
         const description = (event.description || '').toLowerCase();
-        
+
         // Check if search term matches any field (OR condition)
         return employeeName.includes(searchTerm) ||
-               leaveTypeThai.includes(searchTerm) ||
-               (startDate || '').includes(searchTerm) ||
-               (endDate || '').includes(searchTerm) ||
-               (rawStartDate || '').includes(searchTerm) ||
-               (rawEndDate || '').includes(searchTerm) ||
-               (startYear || '').includes(searchTerm) ||
-               (endYear || '').includes(searchTerm) ||
-               (startMonth || '').includes(searchTerm) ||
-               (endMonth || '').includes(searchTerm) ||
-               description.includes(searchTerm) ||
-               (event.leaveType || '').toLowerCase().includes(searchTerm); // Also search original leave type
+          leaveTypeThai.includes(searchTerm) ||
+          (startDate || '').includes(searchTerm) ||
+          (endDate || '').includes(searchTerm) ||
+          (rawStartDate || '').includes(searchTerm) ||
+          (rawEndDate || '').includes(searchTerm) ||
+          (startYear || '').includes(searchTerm) ||
+          (endYear || '').includes(searchTerm) ||
+          (startMonth || '').includes(searchTerm) ||
+          (endMonth || '').includes(searchTerm) ||
+          description.includes(searchTerm) ||
+          (event.leaveType || '').toLowerCase().includes(searchTerm); // Also search original leave type
       });
     }
 
@@ -133,7 +135,7 @@ const EventsManagement = () => {
       filtered = filtered.filter(event => {
         const eventStart = moment(event.startDate);
         const eventEnd = moment(event.endDate);
-        
+
         if (startDateFilter && endDateFilter) {
           const filterStart = moment(startDateFilter);
           const filterEnd = moment(endDateFilter);
@@ -161,13 +163,7 @@ const EventsManagement = () => {
   };
 
   const getLeaveTypeName = (leaveType: string) => {
-    const types = {
-      'vacation': 'ลาพักร้อน',
-      'personal': 'ลากิจ',
-      'sick': 'ลาป่วย',
-      'other': 'อื่นๆ'
-    };
-    return types[leaveType as keyof typeof types] || leaveType;
+    return LEAVE_TYPE_LABELS[leaveType as LeaveType] || leaveType;
   };
 
   const formatDate = (dateString: string) => {
@@ -224,7 +220,7 @@ const EventsManagement = () => {
       setSelectedEvents(new Set());
       setSelectAll(false);
       await loadData();
-      
+
     } catch (error) {
       console.error('Failed to delete selected events:', error);
       toast({
@@ -245,14 +241,7 @@ const EventsManagement = () => {
       return;
     }
 
-    if (password !== '!C@len12') {
-      toast({
-        title: "ข้อผิดพลาด",
-        description: "รหัสผ่านไม่ถูกต้อง",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Password is validated by the backend API
 
     setDeleting(true);
 
@@ -277,7 +266,7 @@ const EventsManagement = () => {
       setSelectedEvents(new Set());
       setSelectAll(false);
       await loadData();
-      
+
     } catch (error) {
       console.error('Failed to delete events:', error);
       toast({
@@ -352,7 +341,7 @@ const EventsManagement = () => {
           endDate: eventData.endDate,
           description: eventData.description
         });
-        
+
         if (success) {
           toast({
             title: "สำเร็จ",
@@ -414,7 +403,7 @@ const EventsManagement = () => {
             <CardTitle className="text-2xl font-normal">จัดการเหตุการณ์</CardTitle>
             <div className="flex gap-2">
               {selectedEvents.size > 0 && (
-                <Button 
+                <Button
                   onClick={handleDeleteSelected}
                   variant="outline"
                   className="flex items-center gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
@@ -491,7 +480,7 @@ const EventsManagement = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="space-y-1">
                 <div className="text-sm text-gray-600">
                   แสดงผล {filteredEvents.length} จากทั้งหมด {events.length} รายการ
@@ -600,7 +589,7 @@ const EventsManagement = () => {
                       <span>รายการต่อหน้า</span>
                     </div>
                   </div>
-                  
+
                   {totalPages > 1 && (
                     <div className="flex items-center gap-2">
                       <Button
@@ -612,11 +601,11 @@ const EventsManagement = () => {
                         <ChevronLeft className="w-4 h-4" />
                         ก่อนหน้า
                       </Button>
-                      
+
                       <span className="text-sm text-gray-600 px-3">
                         หน้า {currentPage} จาก {totalPages}
                       </span>
-                      
+
                       <Button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
@@ -639,48 +628,70 @@ const EventsManagement = () => {
           <DialogPortal>
             <DialogOverlay className="fixed inset-0 z-[999] bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
             <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>ลบเหตุการณ์</DialogTitle>
-              <DialogDescription>
-                เลือกประเภทการลบเหตุการณ์ และกรอกรหัสผ่านเพื่อยืนยัน
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">ประเภทการลบ</label>
-                <Select value={deleteOption} onValueChange={(value: 'month' | 'year' | 'all') => setDeleteOption(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="month">ลบภายในเดือนที่กำหนด</SelectItem>
-                    <SelectItem value="year">ลบภายในปีที่กำหนด</SelectItem>
-                    <SelectItem value="all">ลบทั้งหมด</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <DialogHeader>
+                <DialogTitle>ลบเหตุการณ์</DialogTitle>
+                <DialogDescription>
+                  เลือกประเภทการลบเหตุการณ์ และกรอกรหัสผ่านเพื่อยืนยัน
+                </DialogDescription>
+              </DialogHeader>
 
-              {deleteOption === 'month' && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-sm font-medium">เดือน</label>
-                    <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <SelectItem key={i + 1} value={(i + 1).toString()}>
-                            {moment().month(i).format('MMMM')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">ประเภทการลบ</label>
+                  <Select value={deleteOption} onValueChange={(value: 'month' | 'year' | 'all') => setDeleteOption(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="month">ลบภายในเดือนที่กำหนด</SelectItem>
+                      <SelectItem value="year">ลบภายในปีที่กำหนด</SelectItem>
+                      <SelectItem value="all">ลบทั้งหมด</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {deleteOption === 'month' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-sm font-medium">เดือน</label>
+                      <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => (
+                            <SelectItem key={i + 1} value={(i + 1).toString()}>
+                              {moment().month(i).format('MMMM')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">ปี</label>
+                      <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 5 }, (_, i) => {
+                            const year = moment().year() - 2 + i;
+                            return (
+                              <SelectItem key={year} value={year.toString()}>
+                                {year}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                )}
+
+                {deleteOption === 'year' && (
                   <div>
                     <label className="text-sm font-medium">ปี</label>
-                    <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                    <Select value={yearForDeletion.toString()} onValueChange={(value) => setYearForDeletion(parseInt(value))}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -696,59 +707,37 @@ const EventsManagement = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-              )}
+                )}
 
-              {deleteOption === 'year' && (
                 <div>
-                  <label className="text-sm font-medium">ปี</label>
-                  <Select value={yearForDeletion.toString()} onValueChange={(value) => setYearForDeletion(parseInt(value))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const year = moment().year() - 2 + i;
-                        return (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium">รหัสผ่านยืนยัน</label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="กรอกรหัสผ่าน Management"
+                  />
                 </div>
-              )}
-
-              <div>
-                <label className="text-sm font-medium">รหัสผ่านยืนยัน</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="กรอกรหัสผ่าน Management"
-                />
               </div>
-            </div>
 
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDeleteDialog(false);
-                  setPassword('');
-                }}
-              >
-                ยกเลิก
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleBulkDelete}
-                disabled={deleting || !password}
-              >
-                {deleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteDialog(false);
+                    setPassword('');
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleBulkDelete}
+                  disabled={deleting || !password}
+                >
+                  {deleting ? 'กำลังลบ...' : 'ยืนยันการลบ'}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </DialogPortal>
         </Dialog>

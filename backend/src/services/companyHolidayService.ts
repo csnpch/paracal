@@ -1,103 +1,80 @@
-import { PrismaClient } from '@prisma/client';
-
-export interface CompanyHoliday {
-  id: number;
-  name: string;
-  date: string;
-  description?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface CreateCompanyHolidayInput {
-  name: string;
-  date: string;
-  description?: string;
-}
-
-export interface UpdateCompanyHolidayInput {
-  name?: string;
-  date?: string;
-  description?: string;
-}
+import { getDatabase } from '../database/connection';
+import type { CompanyHoliday, CreateCompanyHolidayInput, UpdateCompanyHolidayInput } from '../types';
+import moment from 'moment';
 
 export class CompanyHolidayService {
-  private prisma: PrismaClient;
+  private db = getDatabase();
 
-  constructor() {
-    this.prisma = new PrismaClient();
+  private getNow(): string {
+    return moment().utcOffset('+07:00').format();
   }
 
-  async getAllCompanyHolidays(): Promise<CompanyHoliday[]> {
-    return await this.prisma.companyHoliday.findMany({
-      orderBy: { date: 'asc' }
-    });
+  getAllCompanyHolidays(): CompanyHoliday[] {
+    return this.db.prepare(`
+      SELECT id, name, date, description, created_at as createdAt, updated_at as updatedAt
+      FROM company_holidays ORDER BY date ASC
+    `).all() as CompanyHoliday[];
   }
 
-  async getCompanyHolidaysByYear(year: number): Promise<CompanyHoliday[]> {
-    return await this.prisma.companyHoliday.findMany({
-      where: {
-        date: {
-          startsWith: year.toString()
-        }
-      },
-      orderBy: { date: 'asc' }
-    });
+  getCompanyHolidaysByYear(year: number): CompanyHoliday[] {
+    return this.db.prepare(`
+      SELECT id, name, date, description, created_at as createdAt, updated_at as updatedAt
+      FROM company_holidays WHERE date LIKE ? ORDER BY date ASC
+    `).all(`${year}%`) as CompanyHoliday[];
   }
 
-  async getCompanyHolidayById(id: number): Promise<CompanyHoliday | null> {
-    return await this.prisma.companyHoliday.findUnique({
-      where: { id }
-    });
+  getCompanyHolidayById(id: number): CompanyHoliday | null {
+    const result = this.db.prepare(`
+      SELECT id, name, date, description, created_at as createdAt, updated_at as updatedAt
+      FROM company_holidays WHERE id = ?
+    `).get(id) as CompanyHoliday | undefined;
+    return result || null;
   }
 
-  async createCompanyHoliday(data: CreateCompanyHolidayInput): Promise<CompanyHoliday> {
-    return await this.prisma.companyHoliday.create({
-      data
-    });
+  createCompanyHoliday(data: CreateCompanyHolidayInput): CompanyHoliday {
+    const now = this.getNow();
+    this.db.prepare(`
+      INSERT INTO company_holidays (name, date, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+    `).run(data.name, data.date, data.description || null, now, now);
+
+    const { id } = this.db.prepare('SELECT last_insert_rowid() as id').get() as { id: number };
+    return this.getCompanyHolidayById(id)!;
   }
 
-  async createMultipleCompanyHolidays(holidays: CreateCompanyHolidayInput[]): Promise<CompanyHoliday[]> {
-    const results = await Promise.all(
-      holidays.map(holiday => this.prisma.companyHoliday.create({ data: holiday }))
-    );
-    return results;
+  createMultipleCompanyHolidays(holidays: CreateCompanyHolidayInput[]): CompanyHoliday[] {
+    return holidays.map((h) => this.createCompanyHoliday(h));
   }
 
-  async updateCompanyHoliday(id: number, data: UpdateCompanyHolidayInput): Promise<CompanyHoliday> {
-    return await this.prisma.companyHoliday.update({
-      where: { id },
-      data
-    });
+  updateCompanyHoliday(id: number, data: UpdateCompanyHolidayInput): CompanyHoliday | null {
+    const existing = this.getCompanyHolidayById(id);
+    if (!existing) return null;
+
+    const now = this.getNow();
+    this.db.prepare(`
+      UPDATE company_holidays SET name = ?, date = ?, description = ?, updated_at = ? WHERE id = ?
+    `).run(data.name ?? existing.name, data.date ?? existing.date, data.description ?? existing.description ?? null, now, id);
+
+    return this.getCompanyHolidayById(id);
   }
 
-  async deleteCompanyHoliday(id: number): Promise<CompanyHoliday> {
-    return await this.prisma.companyHoliday.delete({
-      where: { id }
-    });
+  deleteCompanyHoliday(id: number): boolean {
+    return this.db.prepare('DELETE FROM company_holidays WHERE id = ?').run(id).changes > 0;
   }
 
-  async isCompanyHoliday(date: string): Promise<boolean> {
-    const holiday = await this.prisma.companyHoliday.findFirst({
-      where: { date }
-    });
-    return !!holiday;
+  isCompanyHoliday(date: string): boolean {
+    const result = this.db.prepare('SELECT COUNT(*) as count FROM company_holidays WHERE date = ?').get(date) as { count: number };
+    return result.count > 0;
   }
 
-  async getCompanyHolidaysForDateRange(startDate: string, endDate: string): Promise<CompanyHoliday[]> {
-    return await this.prisma.companyHoliday.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      orderBy: { date: 'asc' }
-    });
+  getCompanyHolidaysForDateRange(startDate: string, endDate: string): CompanyHoliday[] {
+    return this.db.prepare(`
+      SELECT id, name, date, description, created_at as createdAt, updated_at as updatedAt
+      FROM company_holidays WHERE date >= ? AND date <= ? ORDER BY date ASC
+    `).all(startDate, endDate) as CompanyHoliday[];
   }
 
-  async deleteAllCompanyHolidays(): Promise<{ count: number }> {
-    const result = await this.prisma.companyHoliday.deleteMany({});
-    return { count: result.count };
+  deleteAllCompanyHolidays(): { count: number } {
+    const result = this.db.prepare('DELETE FROM company_holidays').run();
+    return { count: result.changes };
   }
 }

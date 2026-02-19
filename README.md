@@ -7,7 +7,7 @@ A full-stack calendar application for managing employees, events, holidays, and 
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd calendar-qa
+cd paracal
 
 # Build frontend (required for Docker)
 cd frontend && npm run build && cd ..
@@ -72,14 +72,18 @@ npm run dev
 ## 📁 Project Structure
 
 ```
-calendar-qa/
+paracal/
+├── shared/                  # Shared types & constants
+│   ├── types.ts            # TypeScript interfaces
+│   └── constants.ts        # Leave type labels, colors
 ├── backend/                 # Bun + Elysia.js API
 │   ├── src/
+│   │   ├── config/         # Centralized configuration
 │   │   ├── routes/         # API endpoints
 │   │   ├── services/       # Business logic
 │   │   ├── database/       # DB connection & schema
 │   │   └── utils/          # Utilities & logging
-│   ├── tests/              # Jest tests
+│   ├── tests/              # bun:test tests
 │   └── Dockerfile          # Backend container
 ├── frontend/               # React + TypeScript
 │   ├── src/

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { X, Calendar, User, FileText, MessageSquare, Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Event } from '@/services/apiDatabase';
-import { LEAVE_TYPE_COLORS, LEAVE_TYPE_LABELS, formatDate, getLeaveTypeColor } from '@/lib/utils';
+import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS, formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface EventDetailsModalProps {
@@ -59,11 +59,11 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   if (!isOpen || !selectedDate) return null;
 
   return createPortal(
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-2 sm:p-4"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg transform transition-all max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -89,7 +89,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
             <div className="space-y-2">
               {/* Company Holiday */}
               {companyHoliday && (
-                <div className="p-3 rounded-lg border bg-red-200 dark:bg-red-600 text-black dark:text-red-100 border-red-300 dark:border-red-500">
+                <div className="p-3 rounded-lg border-l-4 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border-red-500 dark:border-red-400">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
@@ -103,7 +103,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                         </div>
                       )}
                     </div>
-                    
+
                     {isAdminAuthenticated && (
                       <div className="flex space-x-1 ml-2">
                         {onEditCompanyHoliday && (
@@ -137,12 +137,13 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                   </div>
                 </div>
               )}
-              
+
               {/* Employee Events */}
               {events.map((event) => (
                 <div
                   key={event.id}
-                  className={`p-3 rounded-lg border transition-all hover:shadow-sm ${LEAVE_TYPE_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_COLORS] || LEAVE_TYPE_COLORS.other}`}
+                  className="p-3 rounded-lg border-l-4 transition-all hover:shadow-sm bg-gray-50 dark:bg-gray-700"
+                  style={{ borderLeftColor: LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -150,7 +151,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                         <User className="w-3 h-3 flex-shrink-0" />
                         <span className="font-normal text-sm truncate">{getEmployeeName(event.employeeId)}</span>
                       </div>
-                      
+
                       <div className="flex items-center space-x-2 mb-1">
                         <FileText className="w-3 h-3 flex-shrink-0" />
                         <span className="text-xs">{LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS]}</span>
@@ -163,7 +164,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex space-x-1 ml-2">
                       {onEditEvent && (
                         <Button
@@ -200,7 +201,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
 
         {/* Footer */}
         <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-          <Button 
+          <Button
             onClick={handleCreateEvent}
             className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-gray-700 dark:hover:bg-gray-800 text-white text-xs sm:text-sm h-8 sm:h-9"
           >

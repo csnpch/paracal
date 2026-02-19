@@ -24,7 +24,7 @@ const CalendarEvents = () => {
   const [highlightedDates, setHighlightedDates] = useState<string[]>([]);
   const [currentHoverEvent, setCurrentHoverEvent] = useState<{ startDate: string; endDate: string } | null>(null);
   const [filteredEmployeeId, setFilteredEmployeeId] = useState<number | null>(null);
-  
+
   const {
     employees,
     events,
@@ -44,15 +44,15 @@ const CalendarEvents = () => {
   const firstDay = moment().year(currentYear).month(currentMonth).date(1);
   const startDate = firstDay.clone().subtract(firstDay.day(), 'days');
   const endDate = startDate.clone().add(41, 'days'); // 42 days total (6 weeks)
-  
+
   const startYear = startDate.year();
   const endYear = endDate.year();
-  
+
   // Load company holidays for all years that appear in the calendar grid
   const { holidays: currentYearHolidays, refresh: refreshCurrentYear } = useCompanyHolidays(currentYear);
   const { holidays: startYearHolidays, refresh: refreshStartYear } = useCompanyHolidays(startYear);
   const { holidays: endYearHolidays, refresh: refreshEndYear } = useCompanyHolidays(endYear);
-  
+
   // Combine all company holidays
   const companyHolidays = useMemo(() => {
     const combined = [...currentYearHolidays];
@@ -64,7 +64,7 @@ const CalendarEvents = () => {
     }
     return combined;
   }, [currentYearHolidays, startYearHolidays, endYearHolidays, currentYear, startYear, endYear]);
-  
+
   const isCompanyHoliday = (date: Date) => {
     if (!Array.isArray(companyHolidays)) return null;
     const year = date.getFullYear();
@@ -73,7 +73,7 @@ const CalendarEvents = () => {
     const dateString = `${year}-${month}-${day}`;
     return companyHolidays.find(holiday => holiday.date === dateString) || null;
   };
-  
+
   const refreshCompanyHolidays = () => {
     refreshCurrentYear();
     if (startYear !== currentYear) {
@@ -153,12 +153,12 @@ const CalendarEvents = () => {
       }
 
       await loadData();
-      
+
       if (selectedDate) {
         const dayEvents = getEventsForDate(selectedDate);
         setSelectedDateEvents(dayEvents);
       }
-      
+
       setEditingEvent(null);
       setSelectedDateRange([]);
       setIsModalOpen(false);
@@ -200,21 +200,21 @@ const CalendarEvents = () => {
     const dates = [];
     const start = moment(startDate);
     const end = moment(endDate);
-    let current = start.clone();
-    
+    const current = start.clone();
+
     while (current.isSameOrBefore(end)) {
       // Only highlight if date is in current calendar month view
       if (current.month() === moment(currentDate).month() && current.year() === moment(currentDate).year()) {
         const currentDate = current.toDate();
-        
+
         // Skip weekends (Saturday = 6, Sunday = 0)
         const dayOfWeek = current.day();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        
+
         // Skip company holidays
         const dateString = current.format('YYYY-MM-DD');
         const isCompanyHolidayDate = companyHolidays.find(holiday => holiday.date === dateString);
-        
+
         // Only add to highlight if it's not weekend and not company holiday
         if (!isWeekend && !isCompanyHolidayDate) {
           dates.push(current.format('YYYY-MM-DD'));
@@ -222,7 +222,7 @@ const CalendarEvents = () => {
       }
       current.add(1, 'day');
     }
-    
+
     setHighlightedDates(dates);
   }, [currentDate, companyHolidays]);
 
@@ -274,11 +274,11 @@ const CalendarEvents = () => {
         });
       }
       // Note: Creating new holiday is handled by CreateEventPopover
-      
+
       refreshCompanyHolidays();
       setEditingCompanyHoliday(null);
       setIsCompanyHolidayModalOpen(false);
-      
+
       // Refresh events for the selected date to update the modal
       if (selectedDate) {
         const dayEvents = getEventsForDate(selectedDate);
@@ -317,7 +317,7 @@ const CalendarEvents = () => {
             Error: {error}
           </div>
         )}
-        
+
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="text-gray-500 dark:text-gray-300">Loading calendar data...</div>
@@ -341,12 +341,12 @@ const CalendarEvents = () => {
                 onTodayClick={handleTodayClick}
               />
             </div>
-            
+
             {/* Upcoming Events Section - 30% width */}
             <div className="lg:w-[30%]">
-              <UpcomingEvents 
-                events={events} 
-                employees={employees} 
+              <UpcomingEvents
+                events={events}
+                employees={employees}
                 filteredEmployeeId={filteredEmployeeId}
                 onNavigateToMonth={handleNavigateToMonth}
                 onEventHover={handleEventHover}
@@ -361,8 +361,8 @@ const CalendarEvents = () => {
       {/* Event Creation Modal */}
       <EventModal
         isOpen={isModalOpen}
-        onClose={() => { 
-          setIsModalOpen(false); 
+        onClose={() => {
+          setIsModalOpen(false);
           setEditingEvent(null);
           setSelectedDateRange([]);
         }}

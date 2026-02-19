@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Build script for Calendar QA application
+# Build script for Paracal application
 # Usage: ./build.sh [API_URL]
 # Example: ./build.sh https://your-domain.com
 
 set -e
 
-API_URL=${1:-"http://192.168.42.106:3000"}
+API_URL=${1:-"http://localhost:3000"}
 
-echo "Building Calendar QA with API URL: $API_URL"
+echo "Building Paracal with API URL: $API_URL"
 
 # Set environment variable
 export VITE_API_BASE_URL=$API_URL

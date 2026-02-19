@@ -1,10 +1,40 @@
 import { Elysia, t } from 'elysia';
 import { EventService } from '../services/eventService';
 import { EventMergeService } from '../services/eventMergeService';
+import config from '../config';
 import Logger from '../utils/logger';
 
 const eventService = new EventService();
 const eventMergeService = new EventMergeService();
+
+// ── Shared schema fragments ──────────────────────────────────
+
+const leaveTypeSchema = t.Union([
+  t.Literal('vacation'),
+  t.Literal('personal'),
+  t.Literal('sick'),
+  t.Literal('absent'),
+  t.Literal('maternity'),
+  t.Literal('bereavement'),
+  t.Literal('study'),
+  t.Literal('military'),
+  t.Literal('sabbatical'),
+  t.Literal('unpaid'),
+  t.Literal('compensatory'),
+  t.Literal('other'),
+]);
+
+const idParam = t.Object({ id: t.String() });
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function validateAdminPassword(password: string | undefined): void {
+  if (!password || password !== config.adminPassword) {
+    throw new Error('Invalid password');
+  }
+}
+
+// ── Routes ───────────────────────────────────────────────────
 
 export const eventsRoutes = new Elysia({ prefix: '/events' })
   .get('/', () => {
@@ -18,7 +48,7 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       throw error;
     }
   })
-  
+
   .get('/:id', ({ params: { id } }) => {
     try {
       Logger.debug(`Fetching event with ID: ${id}`);
@@ -27,18 +57,13 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
         Logger.warn(`Event not found with ID: ${id}`);
         throw new Error('Event not found');
       }
-      Logger.debug(`Retrieved event: ${event.employeeName} - ${event.leaveType}`);
       return event;
     } catch (error) {
       Logger.error(`Error fetching event ${id}:`, error);
       throw error;
     }
-  }, {
-    params: t.Object({
-      id: t.String()
-    })
-  })
-  
+  }, { params: idParam })
+
   .post('/', ({ body }) => {
     try {
       Logger.debug(`Creating new event: ${JSON.stringify(body)}`);
@@ -47,32 +72,18 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       return newEvent;
     } catch (error) {
       Logger.error('Error creating event:', error);
-      Logger.error('Event data:', JSON.stringify(body, null, 2));
       throw error;
     }
   }, {
     body: t.Object({
       employeeId: t.Number(),
-      leaveType: t.Union([
-        t.Literal('vacation'),
-        t.Literal('personal'),
-        t.Literal('sick'),
-        t.Literal('absent'),
-        t.Literal('maternity'),
-        t.Literal('bereavement'),
-        t.Literal('study'),
-        t.Literal('military'),
-        t.Literal('sabbatical'),
-        t.Literal('unpaid'),
-        t.Literal('compensatory'),
-        t.Literal('other')
-      ]),
+      leaveType: leaveTypeSchema,
       startDate: t.String(),
       endDate: t.String(),
-      description: t.Optional(t.String())
-    })
+      description: t.Optional(t.String()),
+    }),
   })
-  
+
   .put('/:id', ({ params: { id }, body }) => {
     try {
       Logger.debug(`Updating event ${id}: ${JSON.stringify(body)}`);
@@ -85,35 +96,19 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       return event;
     } catch (error) {
       Logger.error(`Error updating event ${id}:`, error);
-      Logger.error('Update data:', JSON.stringify(body, null, 2));
       throw error;
     }
   }, {
-    params: t.Object({
-      id: t.String()
-    }),
+    params: idParam,
     body: t.Object({
       employeeId: t.Optional(t.Number()),
-      leaveType: t.Optional(t.Union([
-        t.Literal('vacation'),
-        t.Literal('personal'),
-        t.Literal('sick'),
-        t.Literal('absent'),
-        t.Literal('maternity'),
-        t.Literal('bereavement'),
-        t.Literal('study'),
-        t.Literal('military'),
-        t.Literal('sabbatical'),
-        t.Literal('unpaid'),
-        t.Literal('compensatory'),
-        t.Literal('other')
-      ])),
+      leaveType: t.Optional(leaveTypeSchema),
       startDate: t.Optional(t.String()),
       endDate: t.Optional(t.String()),
-      description: t.Optional(t.String())
-    })
+      description: t.Optional(t.String()),
+    }),
   })
-  
+
   .delete('/:id', ({ params: { id } }) => {
     try {
       Logger.debug(`Deleting event with ID: ${id}`);
@@ -128,53 +123,26 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       Logger.error(`Error deleting event ${id}:`, error);
       throw error;
     }
-  }, {
-    params: t.Object({
-      id: t.String()
-    })
-  })
-  
+  }, { params: idParam })
+
   .get('/date/:date', ({ params: { date } }) => {
     return eventService.getEventsByDate(date);
-  }, {
-    params: t.Object({
-      date: t.String()
-    })
-  })
-  
+  }, { params: t.Object({ date: t.String() }) })
+
   .get('/date-range/:startDate/:endDate', ({ params: { startDate, endDate } }) => {
     return eventService.getEventsByDateRange(startDate, endDate);
-  }, {
-    params: t.Object({
-      startDate: t.String(),
-      endDate: t.String()
-    })
-  })
-  
+  }, { params: t.Object({ startDate: t.String(), endDate: t.String() }) })
+
   .get('/employee/:employeeId', ({ params: { employeeId } }) => {
     return eventService.getEventsByEmployeeId(Number(employeeId));
-  }, {
-    params: t.Object({
-      employeeId: t.String()
-    })
-  })
+  }, { params: t.Object({ employeeId: t.String() }) })
 
   .get('/employee', ({ query }) => {
     try {
-      Logger.debug('Fetching events by employee name with query:', query);
       const { employeeName, startDate, endDate } = query;
-      
-      if (!employeeName) {
-        Logger.warn('Employee name is required');
-        throw new Error('Employee name is required');
-      }
-      
-      const events = eventService.getEventsByEmployeeName(
-        employeeName as string,
-        startDate as string,
-        endDate as string
-      );
-      
+      if (!employeeName) throw new Error('Employee name is required');
+
+      const events = eventService.getEventsByEmployeeName(employeeName as string, startDate as string, endDate as string);
       Logger.debug(`Retrieved ${events.length} events for employee: ${employeeName}`);
       return events;
     } catch (error) {
@@ -185,58 +153,37 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     query: t.Object({
       employeeName: t.String(),
       startDate: t.Optional(t.String()),
-      endDate: t.Optional(t.String())
-    })
+      endDate: t.Optional(t.String()),
+    }),
   })
-  
+
   .get('/leave-type/:leaveType', ({ params: { leaveType } }) => {
     return eventService.getEventsByLeaveType(leaveType);
-  }, {
-    params: t.Object({
-      leaveType: t.String()
-    })
-  })
-  
+  }, { params: t.Object({ leaveType: t.String() }) })
+
   .get('/month/:year/:month', ({ params: { year, month } }) => {
     return eventService.getEventsByMonth(Number(year), Number(month));
-  }, {
-    params: t.Object({
-      year: t.String(),
-      month: t.String()
-    })
-  })
-  
+  }, { params: t.Object({ year: t.String(), month: t.String() }) })
+
   .get('/search/:query', ({ params: { query } }) => {
     return eventService.searchEvents(query);
-  }, {
-    params: t.Object({
-      query: t.String()
-    })
-  })
-  
+  }, { params: t.Object({ query: t.String() }) })
+
   .get('/upcoming/:days?', ({ params: { days } }) => {
     return eventService.getUpcomingEvents(days ? Number(days) : 30);
-  }, {
-    params: t.Object({
-      days: t.Optional(t.String())
-    })
-  })
-  
-  .get('/stats/overview', () => {
-    return eventService.getEventStats();
-  })
+  }, { params: t.Object({ days: t.Optional(t.String()) }) })
+
+  .get('/stats/overview', () => eventService.getEventStats())
 
   .get('/dashboard/summary', ({ query }) => {
     try {
-      Logger.debug('Fetching dashboard summary with query:', query);
       const { startDate, endDate, eventType, includeFutureEvents } = query;
       const summary = eventService.getDashboardSummary(
         startDate as string,
         endDate as string,
         eventType as string,
-        includeFutureEvents === 'true'
+        includeFutureEvents === 'true',
       );
-      Logger.debug('Dashboard summary retrieved successfully');
       return summary;
     } catch (error) {
       Logger.error('Error fetching dashboard summary:', error);
@@ -247,20 +194,15 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       startDate: t.Optional(t.String()),
       endDate: t.Optional(t.String()),
       eventType: t.Optional(t.String()),
-      includeFutureEvents: t.Optional(t.String())
-    })
+      includeFutureEvents: t.Optional(t.String()),
+    }),
   })
+
+  // ── Bulk Delete (password-protected) ─────────────────────────
 
   .delete('/bulk/month/:year/:month', ({ params: { year, month }, body }) => {
     try {
-      Logger.debug(`Bulk deleting events for month ${month}/${year}`);
-      
-      // Validate password
-      if (!body.password || body.password !== '!C@len12') {
-        Logger.warn(`Invalid password attempt for bulk delete month ${month}/${year}`);
-        throw new Error('Invalid password');
-      }
-      
+      validateAdminPassword(body.password);
       const result = eventService.deleteEventsByMonth(Number(year), Number(month));
       Logger.info(`Bulk deleted ${result.deletedCount} events for month ${month}/${year}`);
       return result;
@@ -269,25 +211,13 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       throw error;
     }
   }, {
-    params: t.Object({
-      year: t.String(),
-      month: t.String()
-    }),
-    body: t.Object({
-      password: t.String()
-    })
+    params: t.Object({ year: t.String(), month: t.String() }),
+    body: t.Object({ password: t.String() }),
   })
 
   .delete('/bulk/year/:year', ({ params: { year }, body }) => {
     try {
-      Logger.debug(`Bulk deleting events for year ${year}`);
-      
-      // Validate password
-      if (!body.password || body.password !== '!C@len12') {
-        Logger.warn(`Invalid password attempt for bulk delete year ${year}`);
-        throw new Error('Invalid password');
-      }
-      
+      validateAdminPassword(body.password);
       const result = eventService.deleteEventsByYear(Number(year));
       Logger.info(`Bulk deleted ${result.deletedCount} events for year ${year}`);
       return result;
@@ -296,24 +226,13 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       throw error;
     }
   }, {
-    params: t.Object({
-      year: t.String()
-    }),
-    body: t.Object({
-      password: t.String()
-    })
+    params: t.Object({ year: t.String() }),
+    body: t.Object({ password: t.String() }),
   })
 
   .delete('/bulk/all', ({ body }) => {
     try {
-      Logger.debug('Bulk deleting all events');
-      
-      // Validate password
-      if (!body.password || body.password !== '!C@len12') {
-        Logger.warn('Invalid password attempt for bulk delete all');
-        throw new Error('Invalid password');
-      }
-      
+      validateAdminPassword(body.password);
       const result = eventService.deleteAllEvents();
       Logger.info(`Bulk deleted ${result.deletedCount} events`);
       return result;
@@ -321,26 +240,17 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       Logger.error('Error bulk deleting all events:', error);
       throw error;
     }
-  }, {
-    body: t.Object({
-      password: t.String()
-    })
-  })
-  
-  // Manual trigger for event merge job
+  }, { body: t.Object({ password: t.String() }) })
+
+  // ── Manual merge trigger ─────────────────────────────────────
+
   .post('/merge-consecutive', async () => {
     try {
       Logger.info('[EventMerge] Manual merge job triggered via API');
       await eventMergeService.executeMergeJob();
-      return {
-        success: true,
-        message: 'Event merge job completed successfully'
-      };
+      return { success: true, message: 'Event merge job completed successfully' };
     } catch (error) {
       Logger.error('[EventMerge] Error during manual merge job:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   });

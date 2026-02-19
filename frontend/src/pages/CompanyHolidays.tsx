@@ -6,13 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  fetchAllCompanyHolidays, 
-  createMultipleCompanyHolidays, 
-  updateCompanyHoliday, 
+import {
+  fetchAllCompanyHolidays,
+  createMultipleCompanyHolidays,
+  updateCompanyHoliday,
   deleteCompanyHoliday,
   clearAllCompanyHolidays,
-  type CompanyHoliday 
+  type CompanyHoliday
 } from '@/services/companyHolidayService';
 import { Plus, Trash2, Edit, Calendar as CalendarIcon, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -59,14 +59,14 @@ const CompanyHolidays: React.FC = () => {
   const validateDateFormat = (date: string): boolean => {
     const regex = /^\d{2}\/\d{2}\/\d{4}$/;
     if (!regex.test(date)) return false;
-    
+
     const parts = date.split('/');
     if (parts.length !== 3) return false;
     const [day, month, year] = parts.map(Number);
     const dateObj = new Date(year, month - 1, day);
-    return dateObj.getDate() === day && 
-           dateObj.getMonth() === month - 1 && 
-           dateObj.getFullYear() === year;
+    return dateObj.getDate() === day &&
+      dateObj.getMonth() === month - 1 &&
+      dateObj.getFullYear() === year;
   };
 
   const formatDateForAPI = (date: string): string => {
@@ -93,9 +93,9 @@ const CompanyHolidays: React.FC = () => {
     }
   };
 
-  const updateHolidayRow = (index: number, field: keyof HolidayFormData, value: string) => {
+  const updateHolidayRow = (index: number, field: 'name' | 'date' | 'description', value: string) => {
     const updatedRows = [...holidayRows];
-    updatedRows[index][field] = value;
+    updatedRows[index] = { ...updatedRows[index], [field]: value };
     // Clear date error when user types
     if (field === 'date') {
       updatedRows[index].dateError = false;
@@ -120,7 +120,7 @@ const CompanyHolidays: React.FC = () => {
   };
 
   const handleSaveHolidays = async () => {
-    const validHolidays = holidayRows.filter(row => 
+    const validHolidays = holidayRows.filter(row =>
       row.name.trim() && row.date.trim() && validateDateFormat(row.date)
     );
 
@@ -141,7 +141,7 @@ const CompanyHolidays: React.FC = () => {
       }));
 
       await createMultipleCompanyHolidays(holidaysToCreate);
-      
+
       toast({
         title: "สำเร็จ",
         description: `เพิ่มวันหยุดบริษัท ${holidaysToCreate.length} วันเรียบร้อยแล้ว`,
@@ -204,7 +204,7 @@ const CompanyHolidays: React.FC = () => {
 
     try {
       await deleteCompanyHoliday(id);
-      
+
       toast({
         title: "สำเร็จ",
         description: "ลบวันหยุดบริษัทเรียบร้อยแล้ว",
@@ -243,7 +243,7 @@ const CompanyHolidays: React.FC = () => {
 
     try {
       const result = await clearAllCompanyHolidays();
-      
+
       toast({
         title: "สำเร็จ",
         description: `ลบวันหยุดบริษัททั้งหมด ${result.count} วันเรียบร้อยแล้ว`,
@@ -269,8 +269,8 @@ const CompanyHolidays: React.FC = () => {
             {isAdminAuthenticated && (
               <div className="flex gap-2">
                 {holidays.length > 0 && (
-                  <Button 
-                    onClick={handleClearAllHolidays} 
+                  <Button
+                    onClick={handleClearAllHolidays}
                     variant="outline"
                     className="flex items-center gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                   >
@@ -285,106 +285,106 @@ const CompanyHolidays: React.FC = () => {
                       เพิ่มวันหยุด
                     </Button>
                   </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingHoliday ? 'แก้ไขวันหยุดบริษัท' : 'เพิ่มวันหยุดบริษัท'}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-0">
-                    <div>
-                      {holidayRows.map((row, index) => (
-                        <div key={index} className="flex gap-3 items-start h-14">
-                          <div className="flex-1">
-                            <Input
-                              placeholder="ชื่อวันหยุด"
-                              value={row.name}
-                              onChange={(e) => updateHolidayRow(index, 'name', e.target.value)}
-                            />
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingHoliday ? 'แก้ไขวันหยุดบริษัท' : 'เพิ่มวันหยุดบริษัท'}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-0">
+                      <div>
+                        {holidayRows.map((row, index) => (
+                          <div key={index} className="flex gap-3 items-start h-14">
+                            <div className="flex-1">
+                              <Input
+                                placeholder="ชื่อวันหยุด"
+                                value={row.name}
+                                onChange={(e) => updateHolidayRow(index, 'name', e.target.value)}
+                              />
+                            </div>
+                            <div className="flex-1 relative">
+                              <Input
+                                placeholder={`DD/MM/YYYY, eg. ${moment().format('DD/MM/YYYY')}`}
+                                value={row.date}
+                                onChange={(e) => updateHolidayRow(index, 'date', e.target.value)}
+                                onBlur={(e) => handleDateBlur(index, e.target.value)}
+                                className={row.dateError ? 'border-red-500 focus:border-red-500' : ''}
+                              />
+                              <input
+                                type="date"
+                                className="absolute opacity-0 pointer-events-none"
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    const date = new Date(e.target.value);
+                                    const formattedDate = String(date.getDate()).padStart(2, '0') + '/' +
+                                      String(date.getMonth() + 1).padStart(2, '0') + '/' +
+                                      date.getFullYear();
+                                    updateHolidayRow(index, 'date', formattedDate);
+                                  }
+                                }}
+                                ref={(ref) => {
+                                  if (ref) {
+                                    (ref.parentElement as any).datePicker = ref;
+                                  }
+                                }}
+                              />
+                              <CalendarIcon
+                                className="absolute right-2 w-4 h-4 text-gray-400 cursor-pointer hover:text-gray-600 z-10"
+                                style={{ top: '12px' }}
+                                onClick={(e) => {
+                                  const datePicker = (e.currentTarget.parentElement as any).datePicker;
+                                  if (datePicker) {
+                                    datePicker.showPicker?.();
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Input
+                                placeholder="หมายเหตุ (ไม่บังคับ)"
+                                value={row.description}
+                                onChange={(e) => updateHolidayRow(index, 'description', e.target.value)}
+                              />
+                            </div>
+                            {!editingHoliday && holidayRows.length > 1 && (
+                              <Button
+                                onClick={() => removeHolidayRow(index)}
+                                variant="outline"
+                                size="sm"
+                                className="px-2"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
-                          <div className="flex-1 relative">
-                            <Input
-                              placeholder={`DD/MM/YYYY, eg. ${moment().format('DD/MM/YYYY')}`}
-                              value={row.date}
-                              onChange={(e) => updateHolidayRow(index, 'date', e.target.value)}
-                              onBlur={(e) => handleDateBlur(index, e.target.value)}
-                              className={row.dateError ? 'border-red-500 focus:border-red-500' : ''}
-                            />
-                            <input
-                              type="date"
-                              className="absolute opacity-0 pointer-events-none"
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  const date = new Date(e.target.value);
-                                  const formattedDate = String(date.getDate()).padStart(2, '0') + '/' + 
-                                    String(date.getMonth() + 1).padStart(2, '0') + '/' + 
-                                    date.getFullYear();
-                                  updateHolidayRow(index, 'date', formattedDate);
-                                }
-                              }}
-                              ref={(ref) => {
-                                if (ref) {
-                                  (ref.parentElement as any).datePicker = ref;
-                                }
-                              }}
-                            />
-                            <CalendarIcon 
-                              className="absolute right-2 w-4 h-4 text-gray-400 cursor-pointer hover:text-gray-600 z-10" 
-                              style={{ top: '12px' }}
-                              onClick={(e) => {
-                                const datePicker = (e.currentTarget.parentElement as any).datePicker;
-                                if (datePicker) {
-                                  datePicker.showPicker?.();
-                                }
-                              }}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <Input
-                              placeholder="หมายเหตุ (ไม่บังคับ)"
-                              value={row.description}
-                              onChange={(e) => updateHolidayRow(index, 'description', e.target.value)}
-                            />
-                          </div>
-                          {!editingHoliday && holidayRows.length > 1 && (
-                            <Button
-                              onClick={() => removeHolidayRow(index)}
-                              variant="outline"
-                              size="sm"
-                              className="px-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
+                        ))}
+                      </div>
+
+                      {!editingHoliday && (
+                        <div className="w-full -mt-12">
+                          <Button onClick={addHolidayRow} variant="outline" size="sm" className="w-full">
+                            <Plus className="w-3 h-3 mr-1" />
+                            เพิ่มแถว
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                    
-                    {!editingHoliday && (
-                      <div className="w-full -mt-12">
-                        <Button onClick={addHolidayRow} variant="outline" size="sm" className="w-full">
-                          <Plus className="w-3 h-3 mr-1" />
-                          เพิ่มแถว
+                      )}
+
+                      <div className="flex justify-end gap-2 !mt-4">
+                        <Button
+                          onClick={() => setIsDialogOpen(false)}
+                          variant="outline"
+                        >
+                          ยกเลิก
+                        </Button>
+                        <Button
+                          onClick={editingHoliday ? handleEditHoliday : handleSaveHolidays}
+                        >
+                          {editingHoliday ? 'บันทึก' : 'เพิ่มวันหยุด'}
                         </Button>
                       </div>
-                    )}
-                    
-                    <div className="flex justify-end gap-2 !mt-4">
-                      <Button 
-                        onClick={() => setIsDialogOpen(false)} 
-                        variant="outline"
-                      >
-                        ยกเลิก
-                      </Button>
-                      <Button 
-                        onClick={editingHoliday ? handleEditHoliday : handleSaveHolidays}
-                      >
-                        {editingHoliday ? 'บันทึก' : 'เพิ่มวันหยุด'}
-                      </Button>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
           </CardHeader>

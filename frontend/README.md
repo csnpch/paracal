@@ -1,4 +1,4 @@
-# Calendar QA Frontend
+# Paracal Frontend
 
 A modern, responsive React application for calendar and employee management with a beautiful UI built using shadcn/ui components.
 

@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getEmployeeService } from '../services/employeeService';
-import { getEventService } from '../services/eventService';
-import { Employee, Event } from '../services/apiDatabase';
+import { getApiDatabase, type Employee, type Event } from '../services/apiDatabase';
 import moment from 'moment';
 
 export const useCalendarData = () => {
@@ -10,18 +8,18 @@ export const useCalendarData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const employeeService = getEmployeeService();
-  const eventService = getEventService();
+  const db = getApiDatabase();
 
-  // Load initial data
+  // ── Load Data ──────────────────────────────────────────────
+
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const employeesData = await employeeService.getAllEmployees();
-      const eventsData = await eventService.getAllEvents();
-      
+      const [employeesData, eventsData] = await Promise.all([
+        db.getAllEmployees(),
+        db.getAllEvents(),
+      ]);
       setEmployees(employeesData);
       setEvents(eventsData);
     } catch (err) {
@@ -31,21 +29,21 @@ export const useCalendarData = () => {
     }
   };
 
-  // Load events for a specific month
   const loadEventsForMonth = async (year: number, month: number) => {
     try {
-      const eventsData = await eventService.getEventsByMonth(year, month + 1); // month is 0-indexed
+      const eventsData = await db.getEventsByMonth(year, month + 1);
       setEvents(eventsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load events');
     }
   };
 
-  // Employee operations
+  // ── Employee Operations ────────────────────────────────────
+
   const addEmployee = async (employee: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const newEmployee = await employeeService.createEmployee(employee);
-      setEmployees(prev => [...prev, newEmployee]);
+      const newEmployee = await db.createEmployee(employee);
+      setEmployees((prev) => [...prev, newEmployee]);
       return newEmployee;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add employee');
@@ -55,11 +53,11 @@ export const useCalendarData = () => {
 
   const updateEmployee = async (id: number, updates: Partial<Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>>) => {
     try {
-      const updatedEmployee = await employeeService.updateEmployee(id, updates);
+      const updatedEmployee = await db.updateEmployee(id, updates);
       if (updatedEmployee) {
-        setEmployees(prev => prev.map(emp => emp.id === id ? updatedEmployee : emp));
+        setEmployees((prev) => prev.map((emp) => (emp.id === id ? updatedEmployee : emp)));
         // Reload events to get updated employee names
-        const eventsData = await eventService.getAllEvents();
+        const eventsData = await db.getAllEvents();
         setEvents(eventsData);
         return updatedEmployee;
       }
@@ -72,11 +70,10 @@ export const useCalendarData = () => {
 
   const deleteEmployee = async (id: number) => {
     try {
-      const success = await employeeService.deleteEmployee(id);
+      const success = await db.deleteEmployee(id);
       if (success) {
-        setEmployees(prev => prev.filter(emp => emp.id !== id));
-        // Also remove related events
-        setEvents(prev => prev.filter(event => event.employeeId !== id));
+        setEmployees((prev) => prev.filter((emp) => emp.id !== id));
+        setEvents((prev) => prev.filter((event) => event.employeeId !== id));
       }
       return success;
     } catch (err) {
@@ -85,12 +82,11 @@ export const useCalendarData = () => {
     }
   };
 
-  // Event operations
+  // ── Event Operations ───────────────────────────────────────
+
   const addEvent = async (event: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const newEvent = await eventService.createEvent(event);
-      // Don't update local state here - let the component reload data
-      return newEvent;
+      return await db.createEvent(event);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add event');
       throw err;
@@ -99,11 +95,8 @@ export const useCalendarData = () => {
 
   const updateEvent = async (id: number, updates: Partial<Omit<Event, 'id' | 'createdAt' | 'updatedAt'>>) => {
     try {
-      const updatedEvent = await eventService.updateEvent(id, updates);
-      if (updatedEvent) {
-        // Don't update local state here - let the component reload data
-        return updatedEvent;
-      }
+      const updatedEvent = await db.updateEvent(id, updates);
+      if (updatedEvent) return updatedEvent;
       throw new Error('Event not found');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update event');
@@ -113,20 +106,18 @@ export const useCalendarData = () => {
 
   const deleteEvent = async (id: number) => {
     try {
-      const success = await eventService.deleteEvent(id);
-      // Don't update local state here - let the component reload data
-      return success;
+      return await db.deleteEvent(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete event');
       throw err;
     }
   };
 
-  // Get events for a specific date
+  // ── Utilities ──────────────────────────────────────────────
+
   const getEventsForDate = (date: Date): Event[] => {
     const dateString = moment(date).format('YYYY-MM-DD');
-    return events.filter(event => {
-      // Check both legacy date field and new date range fields
+    return events.filter((event) => {
       if (event.date === dateString) return true;
       if (event.startDate && event.endDate) {
         return dateString >= event.startDate && dateString <= event.endDate;
@@ -135,51 +126,29 @@ export const useCalendarData = () => {
     });
   };
 
-  // Search functions
-  const searchEmployees = async (query: string) => {
-    return await employeeService.searchEmployees(query);
-  };
-
-  const searchEvents = async (query: string) => {
-    return await eventService.searchEvents(query);
-  };
-
-  // Statistics
-  const getEmployeeStats = async () => {
-    return await employeeService.getEmployeeStats();
-  };
-
-  const getEventStats = async () => {
-    return await eventService.getEventStats();
-  };
+  const searchEmployees = async (query: string) => db.searchEmployees(query);
+  const searchEvents = async (query: string) => db.searchEvents(query);
+  const getEmployeeStats = async () => db.getEmployeeStats();
+  const getEventStats = async () => db.getEventStats();
 
   useEffect(() => {
     loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
-    // Data
     employees,
     events,
     loading,
     error,
-    
-    // Load functions
     loadData,
     loadEventsForMonth,
-    
-    // Employee operations
     addEmployee,
     updateEmployee,
     deleteEmployee,
-    
-    // Event operations
     addEvent,
     updateEvent,
     deleteEvent,
-    
-    // Utility functions
     getEventsForDate,
     searchEmployees,
     searchEvents,

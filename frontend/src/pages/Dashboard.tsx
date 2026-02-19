@@ -36,9 +36,9 @@ const Dashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params: any = {};
-      
+
       if (selectedPeriod === 'custom') {
         params.startDate = dateFrom;
         params.endDate = dateTo;
@@ -52,13 +52,13 @@ const Dashboard = () => {
         params.endDate = `${currentDate.getFullYear()}-12-31`;
       }
       // For selectedPeriod === 'all', don't set any date params to get all data
-      
+
       if (selectedEventType !== 'all') {
         params.eventType = selectedEventType;
       }
-      
+
       params.includeFutureEvents = includeFutureEvents;
-      
+
       const data = await getDashboardSummary(params);
       setDashboardData(data);
     } catch (err) {
@@ -73,18 +73,18 @@ const Dashboard = () => {
   }, [loadDashboardData]);
 
   // Filter and sort ranking based on event type
-  const filteredRanking = dashboardData?.employeeRanking && Array.isArray(dashboardData.employeeRanking) 
+  const filteredRanking = dashboardData?.employeeRanking && Array.isArray(dashboardData.employeeRanking)
     ? dashboardData.employeeRanking.filter(employee => {
-        if (selectedEventType === 'all') return true;
-        return employee.eventTypes[selectedEventType as keyof typeof employee.eventTypes] > 0;
-      }).sort((a, b) => {
-        if (selectedEventType === 'all') {
-          return b.totalEvents - a.totalEvents;
-        }
-        const aCount = a.eventTypes[selectedEventType as keyof typeof a.eventTypes] || 0;
-        const bCount = b.eventTypes[selectedEventType as keyof typeof b.eventTypes] || 0;
-        return bCount - aCount;
-      }) 
+      if (selectedEventType === 'all') return true;
+      return employee.eventTypes[selectedEventType as keyof typeof employee.eventTypes] > 0;
+    }).sort((a, b) => {
+      if (selectedEventType === 'all') {
+        return b.totalEvents - a.totalEvents;
+      }
+      const aCount = a.eventTypes[selectedEventType as keyof typeof a.eventTypes] || 0;
+      const bCount = b.eventTypes[selectedEventType as keyof typeof b.eventTypes] || 0;
+      return bCount - aCount;
+    })
     : [];
 
   const handleEmployeeClick = (employeeName: string) => {
@@ -104,11 +104,11 @@ const Dashboard = () => {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
       return {
-        from: startOfMonth.getFullYear() + '-' + 
-          String(startOfMonth.getMonth() + 1).padStart(2, '0') + '-' + 
+        from: startOfMonth.getFullYear() + '-' +
+          String(startOfMonth.getMonth() + 1).padStart(2, '0') + '-' +
           String(startOfMonth.getDate()).padStart(2, '0'),
-        to: endOfMonth.getFullYear() + '-' + 
-          String(endOfMonth.getMonth() + 1).padStart(2, '0') + '-' + 
+        to: endOfMonth.getFullYear() + '-' +
+          String(endOfMonth.getMonth() + 1).padStart(2, '0') + '-' +
           String(endOfMonth.getDate()).padStart(2, '0')
       };
     } else if (selectedPeriod === 'year') {
@@ -134,13 +134,13 @@ const Dashboard = () => {
             <div className="text-gray-500">กำลังโหลดข้อมูล...</div>
           </div>
         )}
-        
+
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
             เกิดข้อผิดพลาด: {error}
           </div>
         )}
-        
+
         {!loading && !error && dashboardData && (
           <>
             {/* Summary Cards */}
@@ -153,16 +153,16 @@ const Dashboard = () => {
                 <CardContent>
                   <div className="text-2xl font-normal">{dashboardData.monthlyStats.totalEvents}</div>
                   <p className="text-xs text-muted-foreground">
-                    {selectedPeriod === 'custom' 
+                    {selectedPeriod === 'custom'
                       ? `${new Date(dateFrom).toLocaleDateString('th-TH')} - ${new Date(dateTo).toLocaleDateString('th-TH')}`
                       : selectedPeriod === 'all'
-                      ? 'ข้อมูลทั้งหมด'
-                      : `ประจำ${selectedPeriod === 'month' ? 'เดือน' : 'ปี'} ${selectedPeriod === 'month' ? currentMonth : currentYear}`
+                        ? 'ข้อมูลทั้งหมด'
+                        : `ประจำ${selectedPeriod === 'month' ? 'เดือน' : 'ปี'} ${selectedPeriod === 'month' ? currentMonth : currentYear}`
                     }
                   </p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-normal">วันทำงานรวม</CardTitle>
@@ -175,7 +175,7 @@ const Dashboard = () => {
                   </p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-normal">พนักงานที่มีเหตุการณ์</CardTitle>
@@ -188,7 +188,7 @@ const Dashboard = () => {
                   </p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-normal">ประเภทที่พบมากที่สุด</CardTitle>
@@ -208,10 +208,10 @@ const Dashboard = () => {
         )}
 
         {/* Controls */}
-        <div className={`grid gap-4 mb-6 ${selectedPeriod === 'custom' 
-          ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' 
+        <div className={`grid gap-4 mb-6 ${selectedPeriod === 'custom'
+          ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
           : 'grid-cols-1 sm:grid-cols-2'
-        }`}>
+          }`}>
           <div>
             <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
               ช่วงเวลา
@@ -228,7 +228,7 @@ const Dashboard = () => {
               </SelectContent>
             </Select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
               ประเภทเหตุการณ์
@@ -236,7 +236,7 @@ const Dashboard = () => {
             <Combobox
               options={[
                 { value: 'all', label: 'ทุกประเภท' },
-                ...Object.entries(LEAVE_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+                ...(['vacation', 'personal', 'sick', 'other'] as const).map(key => ({ value: key, label: LEAVE_TYPE_LABELS[key] }))
               ]}
               value={selectedEventType}
               onValueChange={setSelectedEventType}
@@ -247,12 +247,12 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-            <Switch 
+            <Switch
               id="include-future"
               checked={includeFutureEvents}
               onCheckedChange={setIncludeFutureEvents}
             />
-            <label 
+            <label
               htmlFor="include-future"
               className="text-sm font-normal cursor-pointer text-gray-700 dark:text-gray-300"
             >
@@ -272,14 +272,14 @@ const Dashboard = () => {
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
                     className="w-full cursor-pointer"
-                    style={{ 
+                    style={{
                       colorScheme: theme === 'dark' ? 'dark' : 'light',
                       width: '100%'
                     }}
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
                   วันที่สิ้นสุด
@@ -290,7 +290,7 @@ const Dashboard = () => {
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
                     className="w-full cursor-pointer"
-                    style={{ 
+                    style={{
                       colorScheme: theme === 'dark' ? 'dark' : 'light',
                       width: '100%'
                     }}
@@ -311,11 +311,11 @@ const Dashboard = () => {
               </CardTitle>
               <CardDescription>
                 จัดเรียงตามจำนวนเหตุการณ์ {selectedEventType !== 'all' ? `ประเภท${selectedEventType}` : 'ทั้งหมด'}
-                {selectedPeriod === 'custom' 
+                {selectedPeriod === 'custom'
                   ? ` ระหว่างวันที่ ${new Date(dateFrom).toLocaleDateString('th-TH')} - ${new Date(dateTo).toLocaleDateString('th-TH')}`
                   : selectedPeriod === 'all'
-                  ? ' ข้อมูลทั้งหมด'
-                  : ` ประจำ${selectedPeriod === 'month' ? 'เดือน' : 'ปี'} ${selectedPeriod === 'month' ? currentMonth : currentYear}`
+                    ? ' ข้อมูลทั้งหมด'
+                    : ` ประจำ${selectedPeriod === 'month' ? 'เดือน' : 'ปี'} ${selectedPeriod === 'month' ? currentMonth : currentYear}`
                 }
               </CardDescription>
             </CardHeader>
@@ -327,8 +327,8 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   filteredRanking.map((employee, index) => (
-                    <div 
-                      key={employee.name} 
+                    <div
+                      key={employee.name}
                       className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                       onClick={() => handleEmployeeClick(employee.name)}
                     >
@@ -346,7 +346,7 @@ const Dashboard = () => {
                       <div className="flex flex-wrap gap-1">
                         {Object.entries(employee.eventTypes).map(([type, count]) => (
                           count > 0 && (
-                            <Badge key={type} variant="secondary" className={getLeaveTypeColor(type)}>
+                            <Badge key={type} className={getLeaveTypeColor(type as any)}>
                               {LEAVE_TYPE_LABELS[type as keyof typeof LEAVE_TYPE_LABELS] || type}: {count}
                             </Badge>
                           )

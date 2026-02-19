@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide explains how to deploy and update the Calendar QA application.
+This guide explains how to deploy and update the Paracal application.
 
 ## 🚀 Deployment Options
 
@@ -45,7 +45,7 @@ The default "HTTP traffic" rule only opens port **80** and **443**. You must cre
 
 | Field | Value |
 | :--- | :--- |
-| Name | `allow-calendar-api` |
+| Name | `allow-paracal-api` |
 | Direction | Ingress |
 | Action on match | Allow |
 | Targets | All instances in the network |
@@ -149,6 +149,9 @@ docker compose -f docker-compose.gcp.yml down
 | :--- | :--- | :--- |
 | `VITE_API_BASE_URL` | Backend API URL (baked at build time) | `frontend/.env` |
 | `DATABASE_URL` | SQLite path (e.g., `file:/app/data/calendar.db`) | `docker-compose.gcp.yml` |
+| `ADMIN_PASSWORD` | Admin password for bulk operations | `docker-compose.yml` |
+| `CALENDARIFIC_API_KEY` | API key for Thai holiday fetching | `docker-compose.yml` |
+| `APP_URL` | Application URL for notification links | `docker-compose.yml` |
 
 ---
 
@@ -172,8 +175,8 @@ docker compose -f docker-compose.gcp.yml down
    - Ensure Docker Desktop has **"Use Rosetta for x86_64/amd64 emulation"** enabled (Settings → General).
 
 5. **Database Reset:**
-   - Data persists in Docker volume `calendar-data`.
-   - To reset: `docker volume rm paracal_calendar-data` then restart.
+   - Data persists in Docker volume `paracal-data`.
+   - To reset: `docker volume rm paracal_paracal-data` then restart.
 
 ### Port Mapping
 | Service | External Port | Internal Port |

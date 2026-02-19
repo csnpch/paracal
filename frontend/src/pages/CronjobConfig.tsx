@@ -12,21 +12,21 @@ import { Checkbox } from '../components/ui/checkbox';
 import { toast } from '../hooks/use-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { Layout } from '../components/Layout';
-import { 
-  getCronjobConfigs, 
+import {
+  getCronjobConfigs,
   getCronjobStatus,
-  createCronjobConfig, 
-  updateCronjobConfig, 
-  deleteCronjobConfig, 
+  createCronjobConfig,
+  updateCronjobConfig,
+  deleteCronjobConfig,
   testCronjobNotification,
-  type CronjobConfig, 
-  type CronjobStatus 
+  type CronjobConfig,
+  type CronjobStatus
 } from '../services/api';
-import { 
-  Trash2, 
-  Edit, 
-  Play, 
-  Plus, 
+import {
+  Trash2,
+  Edit,
+  Play,
+  Plus,
   RotateCcw,
   Loader2
 } from 'lucide-react';
@@ -259,7 +259,7 @@ export default function CronjobConfig() {
       notification_days: config.notification_days,
       notification_type: config.notification_type || 'daily',
       weekly_days: config.weekly_days || [5],
-      weekly_scope: config.weekly_scope === 'current_week' ? 'current' : config.weekly_scope === 'next_week' ? 'next' : config.weekly_scope || 'current'
+      weekly_scope: config.weekly_scope || 'current'
     });
     setIsEditDialogOpen(true);
   };
@@ -288,7 +288,7 @@ export default function CronjobConfig() {
   const handleWeekdayToggle = (dayValue: number, checked: boolean) => {
     setFormData(prev => ({
       ...prev,
-      weekly_days: checked 
+      weekly_days: checked
         ? [...prev.weekly_days, dayValue]
         : prev.weekly_days.filter(day => day !== dayValue)
     }));
@@ -296,12 +296,15 @@ export default function CronjobConfig() {
 
   const getStatusBadge = (config: CronjobConfig) => {
     const status = statuses.find(s => s.id === config.id);
-    if (!status) return <Badge variant="secondary">Unknown</Badge>;
 
-    if (status.enabled && status.running) {
+    // If no status found from backend, fall back to config.enabled
+    const isEnabled = status ? status.enabled : config.enabled;
+    const isRunning = status?.running ?? false;
+
+    if (isEnabled && isRunning) {
       return <Badge variant="default" className="bg-green-500">Running</Badge>;
-    } else if (status.enabled) {
-      return <Badge variant="secondary">Enabled</Badge>;
+    } else if (isEnabled) {
+      return <Badge variant="secondary">Scheduled</Badge>;
     } else {
       return <Badge variant="outline">Disabled</Badge>;
     }
@@ -323,158 +326,158 @@ export default function CronjobConfig() {
             <h1 className="text-2xl font-normal text-gray-900 dark:text-white">Cronjob Configuration</h1>
             <p className="text-gray-600 dark:text-gray-300 mt-2">Manage notification schedules and webhooks</p>
           </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
-            {refreshing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RotateCcw className="w-4 h-4 mr-2" />
-            )}
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Cronjob
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create Cronjob Configuration</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Name <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g. Daily Notification"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="schedule_time">Schedule Time <span className="text-red-500">*</span></Label>
-                  <div className="relative w-full">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RotateCcw className="w-4 h-4 mr-2" />
+              )}
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={resetForm}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Cronjob
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Create Cronjob Configuration</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Name <span className="text-red-500">*</span></Label>
                     <Input
-                      id="schedule_time"
-                      type="time"
-                      value={formData.schedule_time}
-                      onChange={(e) => setFormData(prev => ({ ...prev, schedule_time: e.target.value }))}
-                      className="w-full cursor-pointer pr-10"
-                      style={{ 
-                        colorScheme: theme === 'dark' ? 'dark' : 'light',
-                        width: '100%'
-                      }}
-                      onClick={(e) => {
-                        const input = e.currentTarget;
-                        input.showPicker?.();
-                      }}
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g. Daily Notification"
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="webhook_url">Webhook URL <span className="text-red-500">*</span></Label>
-                  <Textarea
-                    id="webhook_url"
-                    value={formData.webhook_url}
-                    onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
-                    placeholder="https://hooks.slack.com/services/..."
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notification_type">Notification Type <span className="text-red-500">*</span></Label>
-                  <Select
-                    value={formData.notification_type}
-                    onValueChange={(value: 'daily' | 'weekly') => setFormData(prev => ({ ...prev, notification_type: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {formData.notification_type === 'daily' && (
                   <div>
-                    <Label htmlFor="notification_days">Notification Days <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="schedule_time">Schedule Time <span className="text-red-500">*</span></Label>
+                    <div className="relative w-full">
+                      <Input
+                        id="schedule_time"
+                        type="time"
+                        value={formData.schedule_time}
+                        onChange={(e) => setFormData(prev => ({ ...prev, schedule_time: e.target.value }))}
+                        className="w-full cursor-pointer pr-10"
+                        style={{
+                          colorScheme: theme === 'dark' ? 'dark' : 'light',
+                          width: '100%'
+                        }}
+                        onClick={(e) => {
+                          const input = e.currentTarget;
+                          input.showPicker?.();
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="webhook_url">Webhook URL <span className="text-red-500">*</span></Label>
+                    <Textarea
+                      id="webhook_url"
+                      value={formData.webhook_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
+                      placeholder="https://hooks.slack.com/services/..."
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="notification_type">Notification Type <span className="text-red-500">*</span></Label>
                     <Select
-                      value={formData.notification_days.toString()}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, notification_days: parseInt(value) }))}
+                      value={formData.notification_type}
+                      onValueChange={(value: 'daily' | 'weekly') => setFormData(prev => ({ ...prev, notification_type: value }))}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0">Today</SelectItem>
-                        <SelectItem value="1">Tomorrow</SelectItem>
-                        <SelectItem value="2">2 days ahead</SelectItem>
-                        <SelectItem value="3">3 days ahead</SelectItem>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                )}
 
-                {formData.notification_type === 'weekly' && (
-                  <>
+                  {formData.notification_type === 'daily' && (
                     <div>
-                      <Label>Notification Days <span className="text-red-500">*</span></Label>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {weekdays.map((day) => (
-                          <div key={day.value} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`weekday-${day.value}`}
-                              checked={formData.weekly_days.includes(day.value)}
-                              onCheckedChange={(checked) => handleWeekdayToggle(day.value, !!checked)}
-                            />
-                            <Label htmlFor={`weekday-${day.value}`} className="text-sm">
-                              {day.label}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="weekly_scope">Week Scope <span className="text-red-500">*</span></Label>
+                      <Label htmlFor="notification_days">Notification Days <span className="text-red-500">*</span></Label>
                       <Select
-                        value={formData.weekly_scope}
-                        onValueChange={(value: 'current' | 'next') => setFormData(prev => ({ ...prev, weekly_scope: value }))}
+                        value={formData.notification_days.toString()}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, notification_days: parseInt(value) }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="current">สัปดาห์นี้ (Current Week)</SelectItem>
-                          <SelectItem value="next">สัปดาห์หน้า (Next Week)</SelectItem>
+                          <SelectItem value="0">Today</SelectItem>
+                          <SelectItem value="1">Tomorrow</SelectItem>
+                          <SelectItem value="2">2 days ahead</SelectItem>
+                          <SelectItem value="3">3 days ahead</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  </>
-                )}
-                <div className="flex items-center space-x-2 pt-2">
-                  <Switch
-                    id="enabled"
-                    checked={formData.enabled}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enabled: checked }))}
-                  />
-                  <Label htmlFor="enabled">Enabled</Label>
+                  )}
+
+                  {formData.notification_type === 'weekly' && (
+                    <>
+                      <div>
+                        <Label>Notification Days <span className="text-red-500">*</span></Label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {weekdays.map((day) => (
+                            <div key={day.value} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`weekday-${day.value}`}
+                                checked={formData.weekly_days.includes(day.value)}
+                                onCheckedChange={(checked) => handleWeekdayToggle(day.value, !!checked)}
+                              />
+                              <Label htmlFor={`weekday-${day.value}`} className="text-sm">
+                                {day.label}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="weekly_scope">Week Scope <span className="text-red-500">*</span></Label>
+                        <Select
+                          value={formData.weekly_scope}
+                          onValueChange={(value: 'current' | 'next') => setFormData(prev => ({ ...prev, weekly_scope: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="current">สัปดาห์นี้ (Current Week)</SelectItem>
+                            <SelectItem value="next">สัปดาห์หน้า (Next Week)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="enabled"
+                      checked={formData.enabled}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enabled: checked }))}
+                    />
+                    <Label htmlFor="enabled">Enabled</Label>
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreate}>Create</Button>
+                  </div>
                 </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreate}>Create</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-      </div>
 
         <div className="grid gap-4">
           {configs.length === 0 ? (
@@ -487,226 +490,226 @@ export default function CronjobConfig() {
             configs
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
               .map((config) => (
-              <Card key={config.id} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <CardTitle className="text-lg text-gray-900 dark:text-white">{config.name}</CardTitle>
-                      {getStatusBadge(config)}
+                <Card key={config.id} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <CardTitle className="text-lg text-gray-900 dark:text-white">{config.name}</CardTitle>
+                        {getStatusBadge(config)}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={config.enabled}
+                          onCheckedChange={(checked) => handleToggleEnabled(config, checked)}
+                        />
+                        <Button size="sm" variant="outline" onClick={() => handleTest(config.id)}>
+                          <Play className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDelete(config.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      checked={config.enabled}
-                      onCheckedChange={(checked) => handleToggleEnabled(config, checked)}
-                    />
-                    <Button size="sm" variant="outline" onClick={() => handleTest(config.id)}>
-                      <Play className="w-4 h-4" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDelete(config.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="font-normal text-gray-700 dark:text-gray-300">Schedule</p>
-                    <p className="text-gray-900 dark:text-white">{config.schedule_time}</p>
-                  </div>
-                  <div>
-                    <p className="font-normal text-gray-700 dark:text-gray-300">Notification Type</p>
-                    <p className="text-gray-900 dark:text-white">
-                      {config.notification_type === 'weekly' ? 'Weekly' : 'Daily'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-normal text-gray-700 dark:text-gray-300">
-                      {config.notification_type === 'weekly' ? 'Weekly Scope' : 'Notification Days'}
-                    </p>
-                    <p className="text-gray-900 dark:text-white">
-                      {config.notification_type === 'weekly' 
-                        ? (config.weekly_scope === 'current' || config.weekly_scope === 'current_week' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า')
-                        : (config.notification_days === -1 ? 'Today' : 
-                           config.notification_days === 0 ? 'Tomorrow' : 
-                           `${config.notification_days + 1} days ahead`)
-                      }
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-normal text-gray-700 dark:text-gray-300">Created</p>
-                    <p className="text-gray-900 dark:text-white">{new Date(config.created_at).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <p className="font-normal text-gray-700 dark:text-gray-300">Updated</p>
-                    <p className="text-gray-900 dark:text-white">{new Date(config.updated_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                {config.notification_type === 'weekly' && config.weekly_days && config.weekly_days.length > 0 && (
-                  <div className="mt-3">
-                    <p className="font-normal text-gray-700 dark:text-gray-300 mb-1">Notification Days</p>
-                    <div className="flex flex-wrap gap-1">
-                      {config.weekly_days.map(dayValue => {
-                        const day = weekdays.find(w => w.value === dayValue);
-                        return day ? (
-                          <Badge key={dayValue} variant="secondary" className="text-xs">
-                            {day.label}
-                          </Badge>
-                        ) : null;
-                      })}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="font-normal text-gray-700 dark:text-gray-300">Schedule</p>
+                        <p className="text-gray-900 dark:text-white">{config.schedule_time}</p>
+                      </div>
+                      <div>
+                        <p className="font-normal text-gray-700 dark:text-gray-300">Notification Type</p>
+                        <p className="text-gray-900 dark:text-white">
+                          {config.notification_type === 'weekly' ? 'Weekly' : 'Daily'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-normal text-gray-700 dark:text-gray-300">
+                          {config.notification_type === 'weekly' ? 'Weekly Scope' : 'Notification Days'}
+                        </p>
+                        <p className="text-gray-900 dark:text-white">
+                          {config.notification_type === 'weekly'
+                            ? (config.weekly_scope === 'current' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า')
+                            : (config.notification_days === -1 ? 'Today' :
+                              config.notification_days === 0 ? 'Tomorrow' :
+                                `${config.notification_days + 1} days ahead`)
+                          }
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-normal text-gray-700 dark:text-gray-300">Created</p>
+                        <p className="text-gray-900 dark:text-white">{new Date(config.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <p className="font-normal text-gray-700 dark:text-gray-300">Updated</p>
+                        <p className="text-gray-900 dark:text-white">{new Date(config.updated_at).toLocaleDateString()}</p>
+                      </div>
                     </div>
-                  </div>
-                )}
-                <div className="mt-3">
-                  <p className="font-normal text-gray-700 dark:text-gray-300 mb-1">Webhook URL</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                    {config.webhook_url}
-                  </p>
-                </div>
-              </CardContent>
-              </Card>
-            ))
+                    {config.notification_type === 'weekly' && config.weekly_days && config.weekly_days.length > 0 && (
+                      <div className="mt-3">
+                        <p className="font-normal text-gray-700 dark:text-gray-300 mb-1">Notification Days</p>
+                        <div className="flex flex-wrap gap-1">
+                          {config.weekly_days.map(dayValue => {
+                            const day = weekdays.find(w => w.value === dayValue);
+                            return day ? (
+                              <Badge key={dayValue} variant="secondary" className="text-xs">
+                                {day.label}
+                              </Badge>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3">
+                      <p className="font-normal text-gray-700 dark:text-gray-300 mb-1">Webhook URL</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                        {config.webhook_url}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
           )}
         </div>
 
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Cronjob Configuration</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-name">Name <span className="text-red-500">*</span></Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g. Daily Notification"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-schedule_time">Schedule Time <span className="text-red-500">*</span></Label>
-              <div className="relative w-full">
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Cronjob Configuration</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-name">Name <span className="text-red-500">*</span></Label>
                 <Input
-                  id="edit-schedule_time"
-                  type="time"
-                  value={formData.schedule_time}
-                  onChange={(e) => setFormData(prev => ({ ...prev, schedule_time: e.target.value }))}
-                  className="w-full cursor-pointer pr-10"
-                  style={{ 
-                    colorScheme: theme === 'dark' ? 'dark' : 'light',
-                    width: '100%'
-                  }}
-                  onClick={(e) => {
-                    const input = e.currentTarget;
-                    input.showPicker?.();
-                  }}
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Daily Notification"
                 />
               </div>
-            </div>
-            <div>
-              <Label htmlFor="edit-webhook_url">Webhook URL <span className="text-red-500">*</span></Label>
-              <Textarea
-                id="edit-webhook_url"
-                value={formData.webhook_url}
-                onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
-                placeholder="https://hooks.slack.com/services/..."
-                rows={3}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-notification_type">Notification Type <span className="text-red-500">*</span></Label>
-              <Select
-                value={formData.notification_type}
-                onValueChange={(value: 'daily' | 'weekly') => setFormData(prev => ({ ...prev, notification_type: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {formData.notification_type === 'daily' && (
               <div>
-                <Label htmlFor="edit-notification_days">Notification Days <span className="text-red-500">*</span></Label>
+                <Label htmlFor="edit-schedule_time">Schedule Time <span className="text-red-500">*</span></Label>
+                <div className="relative w-full">
+                  <Input
+                    id="edit-schedule_time"
+                    type="time"
+                    value={formData.schedule_time}
+                    onChange={(e) => setFormData(prev => ({ ...prev, schedule_time: e.target.value }))}
+                    className="w-full cursor-pointer pr-10"
+                    style={{
+                      colorScheme: theme === 'dark' ? 'dark' : 'light',
+                      width: '100%'
+                    }}
+                    onClick={(e) => {
+                      const input = e.currentTarget;
+                      input.showPicker?.();
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit-webhook_url">Webhook URL <span className="text-red-500">*</span></Label>
+                <Textarea
+                  id="edit-webhook_url"
+                  value={formData.webhook_url}
+                  onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
+                  placeholder="https://hooks.slack.com/services/..."
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-notification_type">Notification Type <span className="text-red-500">*</span></Label>
                 <Select
-                  value={formData.notification_days.toString()}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, notification_days: parseInt(value) }))}
+                  value={formData.notification_type}
+                  onValueChange={(value: 'daily' | 'weekly') => setFormData(prev => ({ ...prev, notification_type: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Today</SelectItem>
-                    <SelectItem value="1">Tomorrow</SelectItem>
-                    <SelectItem value="2">2 days ahead</SelectItem>
-                    <SelectItem value="3">3 days ahead</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
-            {formData.notification_type === 'weekly' && (
-              <>
+              {formData.notification_type === 'daily' && (
                 <div>
-                  <Label>Notification Days <span className="text-red-500">*</span></Label>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {weekdays.map((day) => (
-                      <div key={day.value} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`edit-weekday-${day.value}`}
-                          checked={formData.weekly_days.includes(day.value)}
-                          onCheckedChange={(checked) => handleWeekdayToggle(day.value, !!checked)}
-                        />
-                        <Label htmlFor={`edit-weekday-${day.value}`} className="text-sm">
-                          {day.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-weekly_scope">Week Scope <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="edit-notification_days">Notification Days <span className="text-red-500">*</span></Label>
                   <Select
-                    value={formData.weekly_scope}
-                    onValueChange={(value: 'current' | 'next') => setFormData(prev => ({ ...prev, weekly_scope: value }))}
+                    value={formData.notification_days.toString()}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, notification_days: parseInt(value) }))}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="current">สัปดาห์นี้ (Current Week)</SelectItem>
-                      <SelectItem value="next">สัปดาห์หน้า (Next Week)</SelectItem>
+                      <SelectItem value="0">Today</SelectItem>
+                      <SelectItem value="1">Tomorrow</SelectItem>
+                      <SelectItem value="2">2 days ahead</SelectItem>
+                      <SelectItem value="3">3 days ahead</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              </>
-            )}
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit-enabled"
-                checked={formData.enabled}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enabled: checked }))}
-              />
-              <Label htmlFor="edit-enabled">Enabled</Label>
+              )}
+
+              {formData.notification_type === 'weekly' && (
+                <>
+                  <div>
+                    <Label>Notification Days <span className="text-red-500">*</span></Label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {weekdays.map((day) => (
+                        <div key={day.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-weekday-${day.value}`}
+                            checked={formData.weekly_days.includes(day.value)}
+                            onCheckedChange={(checked) => handleWeekdayToggle(day.value, !!checked)}
+                          />
+                          <Label htmlFor={`edit-weekday-${day.value}`} className="text-sm">
+                            {day.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-weekly_scope">Week Scope <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={formData.weekly_scope}
+                      onValueChange={(value: 'current' | 'next') => setFormData(prev => ({ ...prev, weekly_scope: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="current">สัปดาห์นี้ (Current Week)</SelectItem>
+                        <SelectItem value="next">สัปดาห์หน้า (Next Week)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-enabled"
+                  checked={formData.enabled}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enabled: checked }))}
+                />
+                <Label htmlFor="edit-enabled">Enabled</Label>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdate}>Update</Button>
+              </div>
             </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleUpdate}>Update</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

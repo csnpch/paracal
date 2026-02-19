@@ -1,19 +1,11 @@
 import type { Holiday } from '../types';
-import { prisma } from '../database/prisma';
+import { getDatabase } from '../database/connection';
+import config from '../config';
 import axios from 'axios';
 import moment from 'moment';
+import Logger from '../utils/logger';
 
-interface NagerDateApiResponse {
-  date: string;
-  localName: string;
-  name: string;
-  countryCode: string;
-  fixed: boolean;
-  global: boolean;
-  counties: string[] | null;
-  launchYear: number | null;
-  types: string[];
-}
+// ─── External API Response Types ─────────────────────────────
 
 interface CalendarificApiResponse {
   meta: {
@@ -25,140 +17,104 @@ interface CalendarificApiResponse {
     holidays: Array<{
       name: string;
       description: string;
-      country: {
-        id: string;
-        name: string;
-      };
-      date: {
-        iso: string;
-        datetime: {
-          year: number;
-          month: number;
-          day: number;
-        };
-      };
+      date: { iso: string };
       type: string[];
       primary_type: string;
-      canonical_url: string;
-      urlid: string;
-      locations: string;
-      states: string;
     }>;
   };
 }
 
+// ─── Service ─────────────────────────────────────────────────
+
 export class HolidayService {
+  private db = getDatabase();
+
   async fetchThaiHolidays(year: number): Promise<Holiday[]> {
     try {
-      // First, try to get holidays from database cache
-      const cachedHolidays = await this.getHolidaysFromDatabase(year);
-      
-      // Try to fetch fresh data from API
-      console.log(`Trying Calendarific API for Thailand holidays ${year}`);
+      // Try API first
+      Logger.info(`Fetching Thai holidays for ${year} from Calendarific API`);
       const response = await axios.get(
-        `https://calendarific.com/api/v2/holidays?api_key=h7EPXfb9fLSkyeNUwai6DVfCbgaub1Re&country=TH&year=${year}`
+        `https://calendarific.com/api/v2/holidays?api_key=${config.calendarificApiKey}&country=TH&year=${year}`,
       );
-      
+
       const data = response.data as CalendarificApiResponse;
-      
+
       if (data.meta.code !== 200 || data.meta.error_type) {
-        console.warn(`Calendarific API error: ${data.meta.error_type} - ${data.meta.error_detail}`);
-        throw new Error(`API error: ${data.meta.error_type}`);
+        throw new Error(`API error: ${data.meta.error_type} - ${data.meta.error_detail}`);
       }
-      
-      if (!data.response.holidays || data.response.holidays.length === 0) {
-        console.warn('Calendarific API returned no holidays');
+
+      if (!data.response.holidays?.length) {
         throw new Error('No holidays returned');
       }
-      
-      // Filter for actual holidays (not just observances)
-      const relevantHolidays = data.response.holidays.filter(holiday => 
-        holiday.primary_type === 'National holiday' || 
-        holiday.primary_type === 'Public holiday' ||
-        holiday.primary_type === 'Buddhist holiday' ||
-        holiday.primary_type === 'Religious holiday'
+
+      const relevantHolidays = data.response.holidays.filter(
+        (h) =>
+          h.primary_type === 'National holiday' ||
+          h.primary_type === 'Public holiday' ||
+          h.primary_type === 'Buddhist holiday' ||
+          h.primary_type === 'Religious holiday',
       );
-      
-      const holidays = relevantHolidays.map(holiday => ({
-        date: holiday.date.iso,
-        name: holiday.name,
-        type: holiday.primary_type.toLowerCase().includes('national') || 
-              holiday.primary_type.toLowerCase().includes('public') ? 'public' as const : 'religious' as const
+
+      const holidays: Holiday[] = relevantHolidays.map((h) => ({
+        date: h.date.iso,
+        name: h.name,
+        type: h.primary_type.toLowerCase().includes('national') || h.primary_type.toLowerCase().includes('public')
+          ? ('public' as const)
+          : ('religious' as const),
       }));
-      
-      console.log(`Successfully fetched ${holidays.length} holidays from Calendarific API`);
-      
-      // Save to database for caching
-      await this.saveHolidaysToDatabase(holidays, year, 'api');
-      
+
+      Logger.info(`Fetched ${holidays.length} holidays from Calendarific API`);
+      this.saveHolidaysToDatabase(holidays, year, 'api');
       return holidays;
-      
     } catch (error) {
-      console.error('Error fetching from Calendarific API:', error);
-      
-      // Try to get from database cache first
-      const cachedHolidays = await this.getHolidaysFromDatabase(year);
-      if (cachedHolidays.length > 0) {
-        console.log(`Using ${cachedHolidays.length} cached holidays from database for ${year}`);
-        return cachedHolidays;
+      Logger.error('Error fetching from Calendarific API:', error);
+
+      // Try database cache
+      const cached = this.getHolidaysFromDatabase(year);
+      if (cached.length > 0) {
+        Logger.info(`Using ${cached.length} cached holidays from database for ${year}`);
+        return cached;
       }
-      
-      // Final fallback to comprehensive default holidays
-      console.warn('No cached data available, using comprehensive default holidays');
-      const defaultHolidays = this.getDefaultThaiHolidays(year);
-      
-      // Save fallback holidays to database for future use
-      await this.saveHolidaysToDatabase(defaultHolidays, year, 'fallback');
-      
-      return defaultHolidays;
+
+      // Final fallback
+      Logger.warn('No cached data available, using default holidays');
+      const defaults = this.getDefaultThaiHolidays(year);
+      this.saveHolidaysToDatabase(defaults, year, 'fallback');
+      return defaults;
     }
   }
 
-  private async getHolidaysFromDatabase(year: number): Promise<Holiday[]> {
+  // ── Database Cache ───────────────────────────────────────────
+
+  private getHolidaysFromDatabase(year: number): Holiday[] {
     try {
-      const holidaysFromDb = await prisma.thaiHoliday.findMany({
-        where: { year },
-        orderBy: { date: 'asc' }
-      });
-      
-      return holidaysFromDb.map(holiday => ({
-        date: holiday.date,
-        name: holiday.name,
-        type: holiday.type as 'public' | 'religious' | 'substitution'
-      }));
+      const rows = this.db.prepare('SELECT date, name, type FROM thai_holidays WHERE year = ? ORDER BY date ASC').all(year) as Array<{ date: string; name: string; type: string }>;
+      return rows.map((r) => ({ date: r.date, name: r.name, type: r.type as Holiday['type'] }));
     } catch (error) {
-      console.error('Error getting holidays from database:', error);
+      Logger.error('Error getting holidays from database:', error);
       return [];
     }
   }
 
-  private async saveHolidaysToDatabase(holidays: Holiday[], year: number, source: string): Promise<void> {
+  private saveHolidaysToDatabase(holidays: Holiday[], year: number, source: string): void {
     try {
-      // Delete existing holidays for this year
-      await prisma.thaiHoliday.deleteMany({
-        where: { year }
-      });
-      
-      // Insert new holidays
-      await prisma.thaiHoliday.createMany({
-        data: holidays.map(holiday => ({
-          name: holiday.name,
-          date: holiday.date,
-          type: holiday.type,
-          year,
-          source
-        }))
-      });
-      
-      console.log(`Saved ${holidays.length} holidays to database for year ${year} (source: ${source})`);
+      this.db.prepare('DELETE FROM thai_holidays WHERE year = ?').run(year);
+
+      const stmt = this.db.prepare('INSERT INTO thai_holidays (name, date, type, year, source) VALUES (?, ?, ?, ?, ?)');
+      for (const h of holidays) {
+        stmt.run(h.name, h.date, h.type, year, source);
+      }
+
+      Logger.info(`Saved ${holidays.length} holidays to database for year ${year} (source: ${source})`);
     } catch (error) {
-      console.error('Error saving holidays to database:', error);
+      Logger.error('Error saving holidays to database:', error);
     }
   }
 
+  // ── Default Holidays ─────────────────────────────────────────
+
   private getDefaultThaiHolidays(year: number): Holiday[] {
     const holidays: Holiday[] = [
-      // Fixed public holidays
       { date: `${year}-01-01`, name: 'วันขึ้นปีใหม่', type: 'public' },
       { date: `${year}-02-26`, name: 'วันมาฆบูชา', type: 'religious' },
       { date: `${year}-04-06`, name: 'วันจักรี', type: 'public' },
@@ -173,18 +129,17 @@ export class HolidayService {
       { date: `${year}-07-21`, name: 'วันเข้าพรรษา', type: 'religious' },
       { date: `${year}-07-28`, name: 'วันเฉลิมพระชนมพรรษาพระบาทสมเด็จพระเจ้าอยู่หัว', type: 'public' },
       { date: `${year}-08-12`, name: 'วันแม่แห่งชาติ', type: 'public' },
-      { date: `${year}-10-13`, name: 'วันคล้ายวันสวรรคตพระบาทสมเด็จพระบรมชนกาธิเบศร มหาภูมิพลอดุลยเดชมหาราช วันที่ ๑๓ ตุลาคม', type: 'public' },
+      { date: `${year}-10-13`, name: 'วันคล้ายวันสวรรคตพระบาทสมเด็จพระบรมชนกาธิเบศร มหาภูมิพลอดุลยเดชมหาราช', type: 'public' },
       { date: `${year}-10-23`, name: 'วันปิยมหาราช', type: 'public' },
       { date: `${year}-12-05`, name: 'วันพ่อแห่งชาติ', type: 'public' },
       { date: `${year}-12-10`, name: 'วันรัฐธรรมนูญ', type: 'public' },
-      { date: `${year}-12-31`, name: 'วันสิ้นปี', type: 'public' }
+      { date: `${year}-12-31`, name: 'วันสิ้นปี', type: 'public' },
     ];
 
-    // Add year-specific adjustments
     if (year === 2024) {
       holidays.push(
         { date: `${year}-07-22`, name: 'วันหยุดชดเชยวันเข้าพรรษา', type: 'public' },
-        { date: `${year}-12-30`, name: 'วันหยุดชดเชยวันสิ้นปี', type: 'public' }
+        { date: `${year}-12-30`, name: 'วันหยุดชดเชยวันสิ้นปี', type: 'public' },
       );
     }
 
@@ -194,33 +149,30 @@ export class HolidayService {
         { date: `${year}-04-16`, name: 'วันหยุดชดเชยวันสงกรานต์', type: 'public' },
         { date: `${year}-05-02`, name: 'วันหยุดชดเชยวันแรงงานแห่งชาติ', type: 'public' },
         { date: `${year}-05-05`, name: 'วันหยุดชดเชยวันฉัตรมงคล', type: 'public' },
-        { date: `${year}-10-14`, name: 'วันหยุดชดเชยวันคล้ายวันสวรรคตฯ', type: 'public' }
+        { date: `${year}-10-14`, name: 'วันหยุดชดเชยวันคล้ายวันสวรรคตฯ', type: 'public' },
       );
     }
 
     return holidays.sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  // ── Query ────────────────────────────────────────────────────
+
   async getHolidaysForDateRange(startDate: string, endDate: string): Promise<Holiday[]> {
     const startYear = moment(startDate).year();
     const endYear = moment(endDate).year();
-    
+
     const allHolidays: Holiday[] = [];
-    
     for (let year = startYear; year <= endYear; year++) {
-      const yearHolidays = await this.fetchThaiHolidays(year);
-      allHolidays.push(...yearHolidays);
+      allHolidays.push(...(await this.fetchThaiHolidays(year)));
     }
-    
-    return allHolidays.filter(holiday => 
-      holiday.date >= startDate && holiday.date <= endDate
-    );
+
+    return allHolidays.filter((h) => h.date >= startDate && h.date <= endDate);
   }
 
   async isHoliday(date: string): Promise<boolean> {
     const year = moment(date).year();
     const holidays = await this.fetchThaiHolidays(year);
-    
-    return holidays.some(holiday => holiday.date === date);
+    return holidays.some((h) => h.date === date);
   }
 }

@@ -1,5 +1,11 @@
 import type { Event } from '../types';
+import { LEAVE_TYPE_LABELS } from '../../../shared/constants';
+import type { LeaveType } from '../../../shared/types';
+import config from '../config';
 import axios from 'axios';
+import Logger from '../utils/logger';
+
+// ─── Types ───────────────────────────────────────────────────
 
 export interface TeamsNotificationPayload {
   type: 'AdaptiveCard';
@@ -8,596 +14,248 @@ export interface TeamsNotificationPayload {
     contentUrl: null;
     content: {
       type: 'AdaptiveCard';
-      body: Array<{
-        type: string;
-        size?: string;
-        weight?: string;
-        text?: string;
-        spacing?: string;
-        wrap?: boolean;
-        color?: string;
-        columns?: Array<{
-          type: string;
-          items: Array<{
-            type: string;
-            spacing?: string;
-            text: string;
-            wrap?: boolean;
-            color?: string;
-            weight?: string;
-          }>;
-          width: string;
-        }>;
-      }>;
-      actions?: Array<{
-        type: 'Action.OpenUrl';
-        title: string;
-        url: string;
-      }>;
+      body: Array<Record<string, any>>;
+      actions?: Array<{ type: 'Action.OpenUrl'; title: string; url: string }>;
     };
   }>;
 }
 
-export class NotificationService {
-  private static getLeaveTypeInThai(leaveType: string): string {
-    const typeMap: { [key: string]: string } = {
-      'vacation': 'ลาพักร้อน',
-      'personal': 'ลากิจ',
-      'sick': 'ลาป่วย',
-      'absent': 'ขาดงาน',
-      'maternity': 'ลาคลอด',
-      'bereavement': 'ลาฌาปนกิจ',
-      'study': 'ลาศึกษา',
-      'military': 'ลาทหาร',
-      'sabbatical': 'ลาพักผ่อนพิเศษ',
-      'unpaid': 'ลาไม่ได้รับเงินเดือน',
-      'compensatory': 'ลาชดเชย',
-      'other': 'อื่นๆ'
-    };
-    return typeMap[leaveType] || leaveType;
+// ─── Helpers ─────────────────────────────────────────────────
+
+function getLeaveTypeInThai(leaveType: string): string {
+  return LEAVE_TYPE_LABELS[leaveType as LeaveType] || leaveType;
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('th-TH', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Asia/Bangkok',
+  }).format(date);
+}
+
+function isValidWebhookResponse(webhookUrl: string, responseText: string, status: number): boolean {
+  const validDomains = [
+    'hooks.slack.com', 'outlook.office.com', 'hooks.teams.microsoft.com',
+    'discord.com', 'discordapp.com', 'hooks.zapier.com', 'logic.azure.com', 'httpbin.org',
+  ];
+
+  const urlDomain = new URL(webhookUrl).hostname;
+  if (validDomains.some((d) => urlDomain.includes(d))) return true;
+
+  if (status === 200) {
+    const lower = responseText.toLowerCase();
+    const invalidIndicators = ['<html', '<!doctype', '<head>', '<body>', '<title>', 'google', 'search', 'javascript', '<script', '<style'];
+    if (invalidIndicators.some((i) => lower.includes(i))) return false;
+
+    const validIndicators = ['success', 'accepted', 'received', 'ok', 'webhook', 'notification', 'message sent', 'delivered'];
+    const hasValid = validIndicators.some((i) => lower.includes(i));
+    const isShort = responseText.length < 100 && !lower.includes('<');
+    return hasValid || isShort;
   }
 
-  private static getThemeColor(leaveType: string): string {
-    const colorMap: { [key: string]: string } = {
-      'sick': '#ff4444',
-      'personal': '#0078d4',
-      'vacation': '#107c10',
-      'absent': '#d13438',
-      'maternity': '#e3008c',
-      'bereavement': '#737373',
-      'study': '#ff8c00',
-      'military': '#008080',
-      'sabbatical': '#5c2d91',
-      'unpaid': '#69797e',
-      'compensatory': '#00875a',
-      'other': '#8764b8'
-    };
-    return colorMap[leaveType] || '#0078d4';
-  }
+  return false;
+}
 
-  private static formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    // Add 7 hours for Thailand timezone (UTC+7)
-    const thailandDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-    return new Intl.DateTimeFormat('th-TH', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: 'Asia/Bangkok'
-    }).format(thailandDate);
-  }
+// ─── Event Grouping Helpers ──────────────────────────────────
 
-  private static formatDateShort(dateString: string): string {
-    const date = new Date(dateString);
-    // Add 7 hours for Thailand timezone (UTC+7)
-    const thailandDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-    return new Intl.DateTimeFormat('th-TH', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      timeZone: 'Asia/Bangkok'
-    }).format(thailandDate);
-  }
+function buildEventListByType(events: Event[]): string {
+  const eventsByType = events.reduce((acc, event) => {
+    const thaiType = getLeaveTypeInThai(event.leaveType || 'other');
+    if (!acc[thaiType]) acc[thaiType] = [];
+    acc[thaiType].push(event);
+    return acc;
+  }, {} as Record<string, Event[]>);
 
-  private static isValidWebhookResponse(webhookUrl: string, responseText: string, status: number): boolean {
-    // Check for known webhook domains
-    const validWebhookDomains = [
-      'hooks.slack.com',
-      'outlook.office.com',
-      'hooks.teams.microsoft.com',
-      'discord.com',
-      'discordapp.com',
-      'hooks.zapier.com',
-      'logic.azure.com', // Azure Logic Apps
-      'httpbin.org' // For testing
-    ];
+  let text = '';
+  Object.entries(eventsByType).forEach(([type, typeEvents]) => {
+    text += `\n- **${type}** (${typeEvents.length} คน):\n`;
+    typeEvents.forEach((event) => {
+      const name = event.employeeName || 'ไม่ระบุชื่อ';
+      text += event.description?.trim() ? `  - ${name} - *${event.description}*\n` : `  - ${name}\n`;
+    });
+  });
+  return text;
+}
 
-    const urlDomain = new URL(webhookUrl).hostname;
-    const isKnownWebhookDomain = validWebhookDomains.some(domain => urlDomain.includes(domain));
+function buildEventListByDate(events: Event[]): string {
+  const eventsByDate = events.reduce((acc, event) => {
+    const eventDate = event.startDate || event.date;
+    if (!eventDate) return acc;
+    if (!acc[eventDate]) acc[eventDate] = {};
+    const thaiType = getLeaveTypeInThai(event.leaveType || 'other');
+    if (!acc[eventDate]![thaiType]) acc[eventDate]![thaiType] = [];
+    acc[eventDate]![thaiType]!.push(event);
+    return acc;
+  }, {} as Record<string, Record<string, Event[]>>);
 
-    // If it's a known webhook domain, trust it
-    if (isKnownWebhookDomain) {
-      return true;
-    }
+  let text = '';
+  Object.entries(eventsByDate).sort().forEach(([date, dateEvents]) => {
+    const dateFormatted = formatDate(date);
+    const dayEvents = Object.values(dateEvents).flat();
+    text += `\n**📅 ${dateFormatted}** (${dayEvents.length} เหตุการณ์):\n`;
 
-    // For unknown domains, check response characteristics
-    if (status === 200) {
-      const lowerResponse = responseText.toLowerCase();
-      
-      // Check for signs it's NOT a webhook (common website responses)
-      const invalidWebhookIndicators = [
-        '<html', '<!doctype', '<head>', '<body>', '<title>',
-        'google', 'search', 'javascript', '<script', '<style',
-        'facebook', 'twitter', 'instagram', 'youtube',
-        'privacy policy', 'terms of service', 'cookies'
-      ];
-
-      const hasInvalidIndicators = invalidWebhookIndicators.some(indicator => 
-        lowerResponse.includes(indicator)
-      );
-
-      if (hasInvalidIndicators) {
-        return false;
-      }
-
-      // Check for webhook success indicators
-      const validWebhookIndicators = [
-        'success', 'accepted', 'received', 'ok', 'webhook',
-        'notification', 'message sent', 'delivered'
-      ];
-
-      const hasValidIndicators = validWebhookIndicators.some(indicator => 
-        lowerResponse.includes(indicator)
-      );
-
-      // If response is very short and doesn't contain HTML, might be valid
-      const isShortResponse = responseText.length < 100;
-      const noHtmlContent = !lowerResponse.includes('<');
-
-      return hasValidIndicators || (isShortResponse && noHtmlContent);
-    }
-
-    return false;
-  }
-
-  static createTeamsPayload(events: Event[], notificationDate: string, notificationDays: number): TeamsNotificationPayload {
-    let dateLabel: string;
-    if (notificationDays === 0) {
-      dateLabel = 'วันนี้';
-    } else if (notificationDays === 1) {
-      dateLabel = 'พรุ่งนี้';
-    } else if (notificationDays === 2) {
-      dateLabel = '2 วันข้างหน้า';
-    } else if (notificationDays === 3) {
-      dateLabel = '3 วันข้างหน้า';
-    } else if (notificationDays === 7) {
-      dateLabel = '1 สัปดาห์ข้างหน้า';
-    } else {
-      dateLabel = `${notificationDays} วันข้างหน้า`;
-    }
-    
-    const isToday = notificationDays === 0;
-    const dateFormatted = this.formatDate(notificationDate);
-    
-    if (events.length === 0) {
-      return {
-        type: 'AdaptiveCard',
-        attachments: [{
-          contentType: 'application/vnd.microsoft.card.adaptive',
-          contentUrl: null,
-          content: {
-            type: 'AdaptiveCard',
-            body: [
-              {
-                type: 'TextBlock',
-                size: 'Medium',
-                weight: 'Bolder',
-                text: '✳️ **Calendar QA**',
-              },
-              {
-                type: 'TextBlock',
-                spacing: 'Medium',
-                text: '[เปิด Calendar QA](http://192.168.42.106:8080/)',
-                wrap: true,
-                color: 'accent',
-              },
-              {
-                type: 'ColumnSet',
-                columns: [{
-                  type: 'Column',
-                  items: [
-                    {
-                      type: 'TextBlock',
-                      spacing: 'None',
-                      text: `📅 แจ้งเตือนปฏิทิน - ${dateLabel}`,
-                      wrap: true,
-                      color: 'good',
-                      weight: 'Bolder',
-                    },
-                    {
-                      type: 'TextBlock',
-                      spacing: 'None',
-                      text: `${dateFormatted} | ไม่มีเหตุการณ์${dateLabel} ✅`,
-                      wrap: true,
-                      color: 'accent',
-                    },  
-                  ],
-                  width: 'stretch',
-                }],
-              },
-            ],
-            actions: [
-              {
-                type: 'Action.OpenUrl',
-                title: 'Open Calendar QA',
-                url: 'http://192.168.42.106:8080/'
-              }
-            ]
-          },
-        }],
-      };
-    }
-
-    // Group events by leave type
-    const eventsByType = events.reduce((acc, event) => {
-      const thaiType = this.getLeaveTypeInThai(event.leaveType || 'other');
-      if (!acc[thaiType]) {
-        acc[thaiType] = [];
-      }
-      acc[thaiType].push(event);
-      return acc;
-    }, {} as { [key: string]: Event[] });
-
-    // Build event details text with proper information
-    let eventDetails = `**${dateFormatted}** | **${events.length} เหตุการณ์**`;
-    
-    // Build event list only
-    let eventList = '';
-    Object.entries(eventsByType).forEach(([type, typeEvents]) => {
-      eventList += `\n- **${type}** (${typeEvents.length} คน):\n`;
-      typeEvents.forEach(event => {
-        const employeeName = event.employeeName || 'ไม่ระบุชื่อ';
-        const description = event.description;
-        if (description && description.trim()) {
-          eventList += `  - ${employeeName} - *${description}*\n`;
-        } else {
-          eventList += `  - ${employeeName}\n`;
-        }
+    Object.entries(dateEvents).forEach(([type, typeEvents]) => {
+      text += `- **${type}** (${typeEvents.length} คน):\n`;
+      typeEvents.forEach((event) => {
+        const name = event.employeeName || 'ไม่ระบุชื่อ';
+        text += event.description?.trim() ? `  - ${name} - *${event.description}*\n` : `  - ${name}\n`;
       });
     });
-    
-    // Create event header text - removed for cleaner format
-    const eventHeader = ``;
+  });
+  return text;
+}
 
-    return {
-      type: 'AdaptiveCard',
-      attachments: [{
-        contentType: 'application/vnd.microsoft.card.adaptive',
-        contentUrl: null,
-        content: {
-          type: 'AdaptiveCard',
-          body: [
-            {
-              type: 'TextBlock',
-              size: 'Medium',
-              weight: 'Bolder',
-              text: '✳️ **Calendar QA**',
-            },
-            {
-              type: 'ColumnSet',
-              columns: [{
-                type: 'Column',
-                items: [
-                  {
-                    type: 'TextBlock',
-                    spacing: 'None',
-                    text: `📅 แจ้งเตือนปฏิทิน - ${dateLabel}`,
-                    wrap: true,
-                    color: 'default',
-                    weight: 'Bolder',
-                  },
-                  {
-                    type: 'TextBlock',
-                    spacing: 'None',
-                    text: eventDetails.trim(),
-                    wrap: true,
-                    color: 'default',
-                  },
-                  {
-                    type: 'TextBlock',
-                    spacing: 'None',
-                    text: eventList.trim(),
-                    wrap: true,
-                    color: 'default',
-                  },
-                ],
-                width: 'stretch',
-              }],
-            },
+// ─── Adaptive Card Builder ───────────────────────────────────
+
+function createAdaptiveCard(headerText: string, summaryText: string, eventListText: string): TeamsNotificationPayload {
+  const appUrl = config.appUrl;
+  const appName = config.appName;
+
+  const bodyItems: Array<Record<string, any>> = [
+    { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳️ **${appName}**` },
+  ];
+
+  if (!eventListText) {
+    // No events card
+    bodyItems.push(
+      { type: 'TextBlock', spacing: 'Medium', text: `[เปิด ${appName}](${appUrl}/)`, wrap: true, color: 'accent' },
+      {
+        type: 'ColumnSet',
+        columns: [{
+          type: 'Column', width: 'stretch',
+          items: [
+            { type: 'TextBlock', spacing: 'None', text: headerText, wrap: true, color: 'good', weight: 'Bolder' },
+            { type: 'TextBlock', spacing: 'None', text: summaryText, wrap: true, color: 'accent' },
           ],
-          actions: [
-            {
-              type: 'Action.OpenUrl',
-              title: 'Open Calendar QA',
-              url: 'http://192.168.42.106:8080/'
-            }
-          ]
-        },
+        }],
+      },
+    );
+  } else {
+    // Has events card
+    bodyItems.push({
+      type: 'ColumnSet',
+      columns: [{
+        type: 'Column', width: 'stretch',
+        items: [
+          { type: 'TextBlock', spacing: 'None', text: headerText, wrap: true, color: 'default', weight: 'Bolder' },
+          { type: 'TextBlock', spacing: 'None', text: summaryText.trim(), wrap: true, color: 'default' },
+          { type: 'TextBlock', spacing: 'None', text: eventListText.trim(), wrap: true, color: 'default' },
+        ],
       }],
-    };
+    });
   }
 
-  static async sendTeamsNotification(webhookUrl: string, payload: TeamsNotificationPayload): Promise<boolean> {
-    try {
-      console.log('Sending Teams notification to:', webhookUrl);
-      console.log('Payload:', JSON.stringify(payload, null, 2));
-      
-      // Use axios for the request
-      const response = await axios.post(webhookUrl, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+  return {
+    type: 'AdaptiveCard',
+    attachments: [{
+      contentType: 'application/vnd.microsoft.card.adaptive',
+      contentUrl: null,
+      content: {
+        type: 'AdaptiveCard',
+        body: bodyItems,
+        actions: [{ type: 'Action.OpenUrl', title: `Open ${appName}`, url: `${appUrl}/` }],
+      },
+    }],
+  };
+}
 
-      console.log('Response status:', response.status);
-      console.log('Response text:', response.data);
+// ─── Public API ──────────────────────────────────────────────
 
-      return true;
-    } catch (error) {
-      console.error('Error sending Teams notification:', error);
-      return false;
+export class NotificationService {
+  /**
+   * Create daily notification payload.
+   */
+  static createDailyPayload(events: Event[], notificationDate: string, notificationDays: number): TeamsNotificationPayload {
+    let dateLabel: string;
+    if (notificationDays === 0) dateLabel = 'วันนี้';
+    else if (notificationDays === 1) dateLabel = 'พรุ่งนี้';
+    else if (notificationDays === 7) dateLabel = '1 สัปดาห์ข้างหน้า';
+    else dateLabel = `${notificationDays} วันข้างหน้า`;
+
+    const dateFormatted = formatDate(notificationDate);
+    const headerText = `📅 แจ้งเตือนปฏิทิน - ${dateLabel}`;
+
+    if (events.length === 0) {
+      return createAdaptiveCard(headerText, `${dateFormatted} | ไม่มีเหตุการณ์${dateLabel} ✅`, '');
     }
+
+    const summaryText = `**${dateFormatted}** | **${events.length} เหตุการณ์**`;
+    const eventListText = buildEventListByType(events);
+    return createAdaptiveCard(headerText, summaryText, eventListText);
   }
 
-  static async sendTeamsNotificationWithError(webhookUrl: string, payload: TeamsNotificationPayload): Promise<{ success: boolean; error?: string }> {
+  /**
+   * Create weekly notification payload.
+   */
+  static createWeeklyPayload(events: Event[], startDate: string, endDate: string, scope: 'current' | 'next'): TeamsNotificationPayload {
+    const startFormatted = formatDate(startDate);
+    const endFormatted = formatDate(endDate);
+    const scopeText = scope === 'current' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า';
+    const headerText = `📅 แจ้งเตือนปฏิทิน - ${scopeText}`;
+
+    if (events.length === 0) {
+      return createAdaptiveCard(headerText, `${startFormatted} - ${endFormatted} | ไม่มีเหตุการณ์${scopeText} ✅`, '');
+    }
+
+    const summaryText = `**${startFormatted} - ${endFormatted}** | **${events.length} เหตุการณ์**`;
+    const eventListText = buildEventListByDate(events);
+    return createAdaptiveCard(headerText, summaryText, eventListText);
+  }
+
+  /**
+   * Send a payload to a webhook URL with detailed error reporting.
+   */
+  static async sendNotification(webhookUrl: string, payload: TeamsNotificationPayload): Promise<{ success: boolean; error?: string }> {
     try {
+      Logger.debug(`Sending notification to: ${webhookUrl}`);
       const response = await axios.post(webhookUrl, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
 
       const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
 
-      // Additional validation for proper webhook endpoints
-      if (!this.isValidWebhookResponse(webhookUrl, responseText, response.status)) {
-        const errorMessage = `Invalid webhook endpoint: ${webhookUrl} does not appear to be a valid webhook. Response: ${responseText.substring(0, 200)}${responseText.length > 200 ? '...' : ''}`;
-        console.error('Invalid webhook endpoint:', errorMessage);
+      if (!isValidWebhookResponse(webhookUrl, responseText, response.status)) {
+        const errorMessage = `Invalid webhook endpoint: ${webhookUrl} does not appear to be a valid webhook. Response: ${responseText.substring(0, 200)}`;
+        Logger.error('Invalid webhook endpoint:', errorMessage);
         return { success: false, error: errorMessage };
       }
 
       return { success: true };
     } catch (error: any) {
       if (error.response) {
-        // Check for common non-webhook HTTP status codes first
-        if (error.response.status === 405) {
-          const errorMessage = `Method not allowed: ${webhookUrl} does not accept POST requests (405 Method Not Allowed)`;
-          return { success: false, error: errorMessage };
-        }
-
-        if (error.response.status === 404) {
-          const errorMessage = `Not found: ${webhookUrl} endpoint does not exist (404 Not Found)`;
-          return { success: false, error: errorMessage };
-        }
+        if (error.response.status === 405) return { success: false, error: `Method not allowed: ${webhookUrl} (405)` };
+        if (error.response.status === 404) return { success: false, error: `Not found: ${webhookUrl} (404)` };
 
         const responseText = typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data);
-        const errorMessage = `Webhook failed with status ${error.response.status}: ${error.response.statusText || 'Unknown error'}. Response: ${responseText}`;
-        console.error('Failed to send Teams notification:', errorMessage);
-        return { success: false, error: errorMessage };
+        return { success: false, error: `Webhook failed with status ${error.response.status}: ${responseText}` };
       }
-
       const errorMessage = error instanceof Error ? error.message : 'Unknown network error';
-      console.error('Error sending Teams notification:', error);
+      Logger.error('Error sending notification:', error);
       return { success: false, error: `Network error: ${errorMessage}` };
     }
   }
 
-  static async sendEventsNotification(
-    events: Event[], 
-    webhookUrl: string, 
-    notificationDate: string, 
-    notificationDays: number
-  ): Promise<boolean> {
-    const payload = this.createTeamsPayload(events, notificationDate, notificationDays);
-    return this.sendTeamsNotification(webhookUrl, payload);
-  }
-
-  static async sendEventsNotificationWithError(
-    events: Event[], 
-    webhookUrl: string, 
-    notificationDate: string, 
-    notificationDays: number
+  /**
+   * Convenience: create daily payload + send.
+   */
+  static async sendDailyNotification(
+    events: Event[], webhookUrl: string, notificationDate: string, notificationDays: number,
   ): Promise<{ success: boolean; error?: string }> {
-    const payload = this.createTeamsPayload(events, notificationDate, notificationDays);
-    return this.sendTeamsNotificationWithError(webhookUrl, payload);
+    const payload = this.createDailyPayload(events, notificationDate, notificationDays);
+    return this.sendNotification(webhookUrl, payload);
   }
 
-  static createWeeklyTeamsPayload(events: Event[], startDate: string, endDate: string, scope: 'current' | 'next'): TeamsNotificationPayload {
-    const startFormatted = this.formatDate(startDate);
-    const endFormatted = this.formatDate(endDate);
-    const scopeText = scope === 'current' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า';
-    
-    if (events.length === 0) {
-      return {
-        type: 'AdaptiveCard',
-        attachments: [{
-          contentType: 'application/vnd.microsoft.card.adaptive',
-          contentUrl: null,
-          content: {
-            type: 'AdaptiveCard',
-            body: [
-              {
-                type: 'TextBlock',
-                size: 'Medium',
-                weight: 'Bolder',
-                text: '✳️ **Calendar QA**',
-              },
-              {
-                type: 'TextBlock',
-                spacing: 'Medium',
-                text: '[เปิด Calendar QA](http://192.168.42.106:8080/)',
-                wrap: true,
-                color: 'accent',
-              },
-              {
-                type: 'ColumnSet',
-                columns: [{
-                  type: 'Column',
-                  items: [
-                    {
-                      type: 'TextBlock',
-                      spacing: 'None',
-                      text: `📅 แจ้งเตือนปฏิทิน - ${scopeText}`,
-                      wrap: true,
-                      color: 'good',
-                      weight: 'Bolder',
-                    },
-                    {
-                      type: 'TextBlock',
-                      spacing: 'None',
-                      text: `${startFormatted} - ${endFormatted} | ไม่มีเหตุการณ์${scopeText} ✅`,
-                      wrap: true,
-                      color: 'accent',
-                    },  
-                  ],
-                  width: 'stretch',
-                }],
-              },
-            ],
-            actions: [
-              {
-                type: 'Action.OpenUrl',
-                title: 'Open Calendar QA',
-                url: 'http://192.168.42.106:8080/'
-              }
-            ]
-          },
-        }],
-      };
-    }
-
-    // Group events by date first, then by leave type
-    // For multi-day events, only include them on the first day (start date)
-    const eventsByDate = events.reduce((acc, event) => {
-      // Use startDate if available, fallback to date for backward compatibility
-      const eventDate = event.startDate || event.date;
-      if (!eventDate) return acc;
-      
-      if (!acc[eventDate]) {
-        acc[eventDate] = {};
-      }
-      const thaiType = this.getLeaveTypeInThai(event.leaveType || 'other');
-      if (!acc[eventDate]![thaiType]) {
-        acc[eventDate]![thaiType] = [];
-      }
-      acc[eventDate]![thaiType]!.push(event);
-      return acc;
-    }, {} as { [date: string]: { [type: string]: Event[] } });
-
-    // Build event details text
-    let eventDetails = `**${startFormatted} - ${endFormatted}** | **${events.length} เหตุการณ์**`;
-    
-    // Build event list organized by date
-    let eventList = '';
-    Object.entries(eventsByDate).sort().forEach(([date, dateEvents]) => {
-      const dateFormatted = this.formatDate(date);
-      const dayEvents = Object.values(dateEvents).flat();
-      eventList += `\n**📅 ${dateFormatted}** (${dayEvents.length} เหตุการณ์):\n`;
-      
-      Object.entries(dateEvents).forEach(([type, typeEvents]) => {
-        eventList += `- **${type}** (${typeEvents.length} คน):\n`;
-        typeEvents.forEach(event => {
-          const employeeName = event.employeeName || 'ไม่ระบุชื่อ';
-          const description = event.description;
-          if (description && description.trim()) {
-            eventList += `  - ${employeeName} - *${description}*\n`;
-          } else {
-            eventList += `  - ${employeeName}\n`;
-          }
-        });
-      });
-    });
-    
-    const eventHeader = ``;
-
-    return {
-      type: 'AdaptiveCard',
-      attachments: [{
-        contentType: 'application/vnd.microsoft.card.adaptive',
-        contentUrl: null,
-        content: {
-          type: 'AdaptiveCard',
-          body: [
-            {
-              type: 'TextBlock',
-              size: 'Medium',
-              weight: 'Bolder',
-              text: '✳️ **Calendar QA**',
-            },
-            {
-              type: 'ColumnSet',
-              columns: [{
-                type: 'Column',
-                items: [
-                  {
-                    type: 'TextBlock',
-                    spacing: 'None',
-                    text: `📅 แจ้งเตือนปฏิทิน - ${scopeText}`,
-                    wrap: true,
-                    color: 'default',
-                    weight: 'Bolder',
-                  },
-                  {
-                    type: 'TextBlock',
-                    spacing: 'None',
-                    text: eventDetails.trim(),
-                    wrap: true,
-                    color: 'default',
-                  },
-                  {
-                    type: 'TextBlock',
-                    spacing: 'None',
-                    text: eventList.trim(),
-                    wrap: true,
-                    color: 'default',
-                  },
-                ],
-                width: 'stretch',
-              }],
-            },
-          ],
-          actions: [
-            {
-              type: 'Action.OpenUrl',
-              title: 'Open Calendar QA',
-              url: 'http://192.168.42.106:8080/'
-            }
-          ]
-        },
-      }],
-    };
-  }
-
-  static async sendWeeklyEventsNotification(
-    events: Event[], 
-    webhookUrl: string, 
-    startDate: string, 
-    endDate: string,
-    scope: 'current' | 'next'
-  ): Promise<boolean> {
-    const payload = this.createWeeklyTeamsPayload(events, startDate, endDate, scope);
-    return this.sendTeamsNotification(webhookUrl, payload);
-  }
-
-  static async sendWeeklyEventsNotificationWithError(
-    events: Event[], 
-    webhookUrl: string, 
-    startDate: string, 
-    endDate: string,
-    scope: 'current' | 'next'
+  /**
+   * Convenience: create weekly payload + send.
+   */
+  static async sendWeeklyNotification(
+    events: Event[], webhookUrl: string, startDate: string, endDate: string, scope: 'current' | 'next',
   ): Promise<{ success: boolean; error?: string }> {
-    const payload = this.createWeeklyTeamsPayload(events, startDate, endDate, scope);
-    return this.sendTeamsNotificationWithError(webhookUrl, payload);
+    const payload = this.createWeeklyPayload(events, startDate, endDate, scope);
+    return this.sendNotification(webhookUrl, payload);
   }
 }

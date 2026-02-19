@@ -1,4 +1,4 @@
-# Calendar QA Backend
+# Paracal Backend
 
 A high-performance REST API built with Bun and Elysia.js for calendar and employee management.
 

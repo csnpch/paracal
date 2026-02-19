@@ -9,8 +9,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ADMIN_CREDENTIALS = {
-  username: 'calendar.adm',
-  password: '!C@len12'
+  username: import.meta.env.VITE_ADMIN_USERNAME || 'calendar.adm',
+  password: import.meta.env.VITE_ADMIN_PASSWORD || '!C@len12',
 };
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
