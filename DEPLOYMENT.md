@@ -1,138 +1,116 @@
 # Deployment Guide
 
-This guide explains how to deploy the Calendar QA application in different environments.
+This guide explains how to deploy and update the Calendar QA application.
 
-## ✅ Docker Compose Status: WORKING
+## 🚀 Deployment Options
 
-The Docker Compose setup is confirmed working! Both frontend and backend containers start successfully and communicate properly.
+1. [Local Deployment (Docker Compose)](#-local-deployment-docker-compose)
+2. [GCP VM Deployment (GCP Free Tier)](#-gcp-vm-deployment-gcp-free-tier)
+3. [Update Process (Local Build & Push)](#-update-process-local-build--push)
 
-## Quick Start
+---
 
-### Default Deployment (Localhost)
+## 🏠 Local Deployment (Docker Compose)
+
+Standard setup for development or local testing.
+
+### Quick Start
 ```bash
 # Start the application
 docker-compose up -d
 
-# Access the application
-# Frontend: http://localhost:80
+# Access points:
+# Frontend: http://localhost:8080
 # Backend API: http://localhost:3000
 # API Docs: http://localhost:3000/swagger
 ```
 
-### Custom API URL Deployment
-```bash
-# 1. Set your API URL in frontend/.env
-echo "VITE_API_BASE_URL=https://your-domain.com" > frontend/.env
+---
 
-# 2. Rebuild frontend with new API URL
-cd frontend && npm run build && cd ..
+## ☁️ GCP VM Deployment (GCP Free Tier)
 
-# 3. Start containers
-docker-compose up -d
-```
+Optimized for **e2-micro** instances (1GB RAM) where building images directly on the VM is too slow.
 
-## Environment Configuration
+### Initial VM Setup
+1. Create a VM in `us-central1`, `us-west1`, or `us-east1` (Free Tier regions).
+2. Select **e2-micro** machine type.
+3. Enable **HTTP/HTTPS traffic** in Firewall settings.
+4. Recommended: Create a **2GB Swap File** to prevent crashes.
 
-### For Different Deployment Scenarios:
+### Remote Configuration (`docker-compose.gcp.yml`)
+On the GCP VM, use the dedicated GCP configuration file which points to pre-built images. To run it, use:
+`docker compose -f docker-compose.gcp.yml up -d`
 
-#### Production with Domain
-```bash
-# Set API URL and rebuild
-echo "VITE_API_BASE_URL=https://api.your-domain.com" > frontend/.env
-cd frontend && npm run build && cd ..
-docker-compose build frontend
-docker-compose up -d
-```
+---
 
-#### Production with IP Address
-```bash
-# Set API URL and rebuild
-echo "VITE_API_BASE_URL=http://192.168.1.100:3000" > frontend/.env
-cd frontend && npm run build && cd ..
-docker-compose build frontend
-docker-compose up -d
-```
+## 🔄 Update Process (Local Build & Push)
 
-#### Development with External API
-```bash
-# Set API URL and rebuild
-echo "VITE_API_BASE_URL=https://dev-api.example.com" > frontend/.env
-cd frontend && npm run build && cd ..
-docker-compose build frontend
-docker-compose up -d
-```
+Since building on a Free Tier VM is slow, use this **Local Build -> Hub -> Remote Pull** workflow.
 
-## Build Script (Automated)
-
-Use the provided build script for easy deployment:
+### 1. Locally on your Mac
+Build and push images to Docker Hub.
 
 ```bash
-# Default (localhost:3000)
-./build.sh
+# Ensure Docker Desktop is running
+# Login to Docker Hub
+docker login
 
-# Custom API URL
-./build.sh https://your-domain.com
-./build.sh http://192.168.1.100:3000
-./build.sh https://api.your-domain.com
+# Set the correct API URL for the environment (GCP External IP)
+echo "VITE_API_BASE_URL=http://34.56.225.220:3000" > frontend/.env
+
+# Build images locally (Fast)
+docker build -t calendar-backend ./backend
+docker build -t calendar-frontend ./frontend
+
+# Tag for Docker Hub
+docker tag calendar-backend chtisanuphongcha/calendar-backend:latest
+docker tag calendar-frontend chtisanuphongcha/calendar-frontend:latest
+
+# Push to Hub
+docker push chtisanuphongcha/calendar-backend:latest
+docker push chtisanuphongcha/calendar-frontend:latest
 ```
 
-## Verification Commands
+### 2. Remotely on GCP VM
+Pull the new images and restart using the GCP config file.
 
 ```bash
-# Check containers are running
-docker ps
+# Connect to your VM
+ssh your_name_ssh (eg. paracal)
 
-# Test backend API
-curl http://localhost:3000/employees
+# Navigate to project folder
+cd ~/your_project_folder (eg. paracal)
 
-# Test frontend
-curl http://localhost:80
-
-# Check logs
-docker-compose logs -f
+# Update images and restart using the GCP-specific file
+docker compose -f docker-compose.gcp.yml pull
+docker compose -f docker-compose.gcp.yml up -d
 ```
 
-## File Structure for Environment Management
+---
 
-```
-calendar-qa/
-├── .env.example                 # Environment template
-├── frontend/
-│   ├── .env                     # Frontend environment variables
-│   ├── .env.example            # Frontend environment template
-│   └── src/services/api.ts     # API configuration (uses VITE_API_BASE_URL)
-├── docker-compose.yml          # Container orchestration
-├── build.sh                    # Automated build script
-└── DEPLOYMENT.md               # This file
-```
+## ⚙️ Environment Variables
 
-## Troubleshooting
+| Variable | Description | Location |
+| :--- | :--- | :--- |
+| `VITE_API_BASE_URL` | The URL of the Backend API | `frontend/.env` |
+| `DATABASE_URL` | SQLite path (e.g., `file:/app/data/calendar.db`) | `docker-compose.yml` |
+
+---
+
+## 🛠️ Troubleshooting
 
 ### Common Issues
+1. **"Failed to fetch" on Frontend:**
+   - Verify `VITE_API_BASE_URL` points to the correct External IP and port (3000).
+   - Re-build the frontend image locally after changing this value.
 
-1. **"Failed to fetch" errors**
-   - Ensure `frontend/.env` has correct `VITE_API_BASE_URL`
-   - Rebuild frontend: `cd frontend && npm run build && cd ..`
-   - Restart containers: `docker-compose restart`
+2. **GCP VM Memory Errors:**
+   - Ensure Swap file is active: `sudo swapon --show`.
+   - Use the Local Build workflow instead of building on the VM.
 
-2. **Environment changes not taking effect**
-   - Environment variables are build-time, not runtime
-   - Always rebuild after changing `VITE_API_BASE_URL`
-   - Use the build script for convenience
-
-3. **Containers not starting**
-   - Check Docker daemon is running
-   - Verify ports 80 and 3000 are available
-   - Check logs: `docker-compose logs`
+3. **Database Reset:**
+   - Ensure the volume `calendar-data` is correctly mapped in `docker-compose.yml` to persist `calendar.db`.
 
 ### Port Information
-- **Frontend**: Port 80 (nginx)
-- **Backend**: Port 3000 (mapped from internal 3001)
-- **Database**: SQLite file in backend container
-
-## Production Notes
-- The setup uses SQLite for simplicity
-- Database persists in Docker volume `calendar-data`
-- Logs persist in Docker volume `calendar-logs`
-- For production, consider using external database
-- Update CORS settings in backend for production domains
+- **Frontend External**: 8080
+- **Backend External**: 3000 (Internal: 3001)
