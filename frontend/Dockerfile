@@ -4,7 +4,7 @@ FROM nginx:alpine
 # Copy pre-built files from local dist
 COPY dist /usr/share/nginx/html
 
-# Create nginx config for SPA
+# Create nginx config for SPA + API proxy
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
@@ -13,8 +13,8 @@ RUN echo 'server { \
     location / { \
     try_files $uri $uri/ /index.html; \
     } \
-    location /api { \
-    proxy_pass http://backend:3001; \
+    location /api/ { \
+    proxy_pass http://backend:3001/; \
     proxy_set_header Host $host; \
     proxy_set_header X-Real-IP $remote_addr; \
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \

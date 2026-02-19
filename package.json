@@ -8,7 +8,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "install:all": "cd backend && bun install && cd ../frontend && npm install",
     "build:backend": "cd backend && bun install && bun run build",
-    "build:frontend": "cd frontend && npm install && VITE_API_BASE_URL=http://34.56.225.220:3000 npm run build",
+    "build:frontend": "cd frontend && npm install && VITE_API_BASE_URL=/api npm run build",
     "gcp:build-code": "npm run build:backend && npm run build:frontend",
     "gcp:build-image": "docker build --platform linux/amd64 -f backend/Dockerfile -t paracal-backend . && docker build --platform linux/amd64 -t paracal-frontend ./frontend",
     "gcp:tag": "docker tag paracal-backend chtisanuphongcha/paracal-backend:latest && docker tag paracal-frontend chtisanuphongcha/paracal-frontend:latest",
