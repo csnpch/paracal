@@ -3,17 +3,16 @@ FROM oven/bun:1-alpine
 WORKDIR /app
 
 # Copy pre-built files from local machine
-COPY dist ./dist
-COPY src ./src
-COPY package*.json bun.lock* ./
-COPY index.ts ./
-COPY prisma ./prisma
+COPY backend/dist ./dist
+COPY backend/src ./src
+COPY backend/package*.json ./
+COPY backend/index.ts ./
 
-# Install build tools for native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++
+# Copy shared modules (used by backend services)
+COPY shared ./shared
 
-# Install production dependencies only
-RUN bun install --no-save
+# Install production dependencies only (skip devDependencies like better-sqlite3)
+RUN bun install --ignore-scripts --no-save
 
 # Create logs and data directories
 RUN mkdir -p logs data && chmod 755 logs data
