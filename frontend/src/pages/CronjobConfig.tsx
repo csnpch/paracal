@@ -544,9 +544,9 @@ export default function CronjobConfig() {
                         <p className="text-gray-900 dark:text-white">
                           {config.notification_type === 'weekly'
                             ? (config.weekly_scope === 'current' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า')
-                            : (config.notification_days === -1 ? 'Today' :
-                              config.notification_days === 0 ? 'Tomorrow' :
-                                `${config.notification_days + 1} days ahead`)
+                            : (config.notification_days === 0 ? 'Today' :
+                              config.notification_days === 1 ? 'Tomorrow' :
+                                `${config.notification_days} days ahead`)
                           }
                         </p>
                       </div>
