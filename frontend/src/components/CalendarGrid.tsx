@@ -756,7 +756,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   <div className="flex justify-between items-center mb-0 px-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-gray-200">
-                        {formatDate(date)}
+                        {formatDate(date)}{thaiHoliday ? '*' : ''}
                       </h3>
                       {dayBadge}
                     </div>
@@ -797,19 +797,6 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                       ) : agendaDayHeader}
 
                       <div className="flex flex-col gap-2 mt-3">
-                        {/* Thai Holiday */}
-                        {thaiHoliday && (
-                          <div className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300">
-                            <div className="mt-0.5 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-900 p-1.5 rounded-full shadow-sm">
-                              <Calendar size={18} />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">วันหยุดประเพณี</p>
-                              <p className="text-sm mt-0.5">{thaiHoliday.name}</p>
-                            </div>
-                          </div>
-                        )}
-
                         {/* Company Holiday */}
                         {compHoliday && (
                           <div
@@ -857,7 +844,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           );
                         })}
 
-                        {dayEvents.length === 0 && !thaiHoliday && !compHoliday && (
+                        {dayEvents.length === 0 && !compHoliday && (
                           <div className="p-3 sm:p-4 flex items-center justify-center gap-2 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 min-h-[60px]">
                             <p className="text-sm text-gray-400 dark:text-gray-500">ไม่มีรายการใดๆ</p>
                           </div>

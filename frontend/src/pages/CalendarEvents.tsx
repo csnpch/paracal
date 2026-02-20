@@ -369,7 +369,18 @@ const CalendarEvents = () => {
                     companyHolidays={companyHolidays}
                     highlightedDates={highlightedDates}
                     filteredEmployeeId={filteredEmployeeId}
-                    onViewModeChange={setViewMode}
+                    onViewModeChange={(mode) => {
+                      setViewMode(mode);
+                      let newDate;
+                      if (mode === 'month') {
+                        newDate = moment().startOf('month').toDate();
+                      } else if (mode === 'week') {
+                        newDate = moment().startOf('week').toDate();
+                      } else {
+                        newDate = moment().startOf('day').toDate();
+                      }
+                      setCurrentDate(newDate);
+                    }}
                     onDateClick={handleDateClick}
                     onCreateEvent={handleCreateEvent}
                     onHolidayAdded={refreshCompanyHolidays}
