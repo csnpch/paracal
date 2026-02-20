@@ -11,8 +11,11 @@ import { Layout } from '@/components/Layout';
 import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHolidayService';
 import moment from 'moment';
 
+export type ViewMode = 'month' | 'week' | 'day';
+
 const CalendarEvents = () => {
   const [currentDate, setCurrentDate] = useState(moment().toDate());
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCompanyHolidayModalOpen, setIsCompanyHolidayModalOpen] = useState(false);
@@ -41,9 +44,21 @@ const CalendarEvents = () => {
   // Calculate the range of years that will be visible in the calendar grid
   const currentYear = moment(currentDate).year();
   const currentMonth = moment(currentDate).month();
-  const firstDay = moment().year(currentYear).month(currentMonth).date(1);
-  const startDate = firstDay.clone().subtract(firstDay.day(), 'days');
-  const endDate = startDate.clone().add(41, 'days'); // 42 days total (6 weeks)
+
+  let startDate = moment(currentDate);
+  let endDate = moment(currentDate);
+
+  if (viewMode === 'month') {
+    const firstDay = moment().year(currentYear).month(currentMonth).date(1);
+    startDate = firstDay.clone().subtract(firstDay.day(), 'days');
+    endDate = startDate.clone().add(41, 'days'); // 42 days total (6 weeks)
+  } else if (viewMode === 'week') {
+    startDate = moment(currentDate).startOf('week');
+    endDate = startDate.clone().add(6, 'days');
+  } else {
+    startDate = moment(currentDate).startOf('day');
+    endDate = startDate.clone().endOf('day');
+  }
 
   const startYear = startDate.year();
   const endYear = endDate.year();
@@ -167,22 +182,40 @@ const CalendarEvents = () => {
     }
   };
 
-  const handlePrevMonth = () => {
-    const newDate = moment(currentDate).subtract(1, 'month').startOf('month').toDate();
+  const handlePrevDate = () => {
+    let newDate;
+    if (viewMode === 'month') {
+      newDate = moment(currentDate).subtract(1, 'month').startOf('month').toDate();
+    } else if (viewMode === 'week') {
+      newDate = moment(currentDate).subtract(1, 'week').startOf('week').toDate();
+    } else {
+      newDate = moment(currentDate).subtract(1, 'day').startOf('day').toDate();
+    }
     setCurrentDate(newDate);
-    // Don't reload events - keep all events visible
   };
 
-  const handleNextMonth = () => {
-    const newDate = moment(currentDate).add(1, 'month').startOf('month').toDate();
+  const handleNextDate = () => {
+    let newDate;
+    if (viewMode === 'month') {
+      newDate = moment(currentDate).add(1, 'month').startOf('month').toDate();
+    } else if (viewMode === 'week') {
+      newDate = moment(currentDate).add(1, 'week').startOf('week').toDate();
+    } else {
+      newDate = moment(currentDate).add(1, 'day').startOf('day').toDate();
+    }
     setCurrentDate(newDate);
-    // Don't reload events - keep all events visible
   };
 
   const handleTodayClick = () => {
-    const newDate = moment().startOf('month').toDate();
+    let newDate;
+    if (viewMode === 'month') {
+      newDate = moment().startOf('month').toDate();
+    } else if (viewMode === 'week') {
+      newDate = moment().startOf('week').toDate();
+    } else {
+      newDate = moment().startOf('day').toDate();
+    }
     setCurrentDate(newDate);
-    // Don't reload events - keep all events visible
   };
 
   const handleNavigateToMonth = (year: number, month: number) => {
@@ -326,20 +359,26 @@ const CalendarEvents = () => {
           <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
             {/* Calendar Grid - 70% width */}
             <div className="flex-1 lg:w-[70%]">
-              <CalendarGrid
-                currentDate={currentDate}
-                events={events}
-                employees={employees}
-                companyHolidays={companyHolidays}
-                highlightedDates={highlightedDates}
-                filteredEmployeeId={filteredEmployeeId}
-                onDateClick={handleDateClick}
-                onCreateEvent={handleCreateEvent}
-                onHolidayAdded={refreshCompanyHolidays}
-                onPrevMonth={handlePrevMonth}
-                onNextMonth={handleNextMonth}
-                onTodayClick={handleTodayClick}
-              />
+              <div className="w-full pb-2">
+                <div className="w-full">
+                  <CalendarGrid
+                    currentDate={currentDate}
+                    viewMode={viewMode}
+                    events={events}
+                    employees={employees}
+                    companyHolidays={companyHolidays}
+                    highlightedDates={highlightedDates}
+                    filteredEmployeeId={filteredEmployeeId}
+                    onViewModeChange={setViewMode}
+                    onDateClick={handleDateClick}
+                    onCreateEvent={handleCreateEvent}
+                    onHolidayAdded={refreshCompanyHolidays}
+                    onPrevDate={handlePrevDate}
+                    onNextDate={handleNextDate}
+                    onTodayClick={handleTodayClick}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Upcoming Events Section - 30% width */}

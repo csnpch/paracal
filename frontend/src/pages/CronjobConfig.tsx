@@ -40,6 +40,9 @@ export default function CronjobConfig() {
   const [editingConfig, setEditingConfig] = useState<CronjobConfig | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+  const [testingConfigId, setTestingConfigId] = useState<number | null>(null);
+  const [testMessage, setTestMessage] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -205,15 +208,23 @@ export default function CronjobConfig() {
     }
   };
 
-  const handleTest = async (id: number) => {
+  const openTestDialog = (id: number) => {
+    setTestingConfigId(id);
+    setTestMessage('');
+    setIsTestDialogOpen(true);
+  };
+
+  const handleTestSubmit = async () => {
+    if (testingConfigId === null) return;
     try {
-      const response = await testCronjobNotification(id);
+      const response = await testCronjobNotification(testingConfigId, testMessage);
       if (response.success) {
         toast({
           title: 'Success',
           description: 'Test notification sent successfully',
           variant: 'success'
         });
+        setIsTestDialogOpen(false);
       } else {
         throw new Error(response.error || 'Failed to send test notification');
       }
@@ -502,7 +513,7 @@ export default function CronjobConfig() {
                           checked={config.enabled}
                           onCheckedChange={(checked) => handleToggleEnabled(config, checked)}
                         />
-                        <Button size="sm" variant="outline" onClick={() => handleTest(config.id)}>
+                        <Button size="sm" variant="outline" onClick={() => openTestDialog(config.id)}>
                           <Play className="w-4 h-4" />
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>
@@ -706,6 +717,34 @@ export default function CronjobConfig() {
                   Cancel
                 </Button>
                 <Button onClick={handleUpdate}>Update</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Test Notification</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="test-message">Custom Message (Optional)</Label>
+                <Textarea
+                  id="test-message"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  placeholder="Enter custom announcement message to replace the default one..."
+                  rows={4}
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsTestDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleTestSubmit}>
+                  Send Test
+                </Button>
               </div>
             </div>
           </DialogContent>

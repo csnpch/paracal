@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import Logger from '../utils/logger';
+import bcrypt from 'bcryptjs';
 
 class DatabaseConnection {
   private static instance: Database | null = null;
@@ -86,6 +87,12 @@ class DatabaseConnection {
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        -- Admin config table
+        CREATE TABLE IF NOT EXISTS admin_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pin TEXT NOT NULL
+        );
+
         -- Create indexes for better performance
         CREATE INDEX IF NOT EXISTS idx_events_employee_id ON events(employee_id);
         CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
@@ -163,6 +170,33 @@ class DatabaseConnection {
       // Fix legacy scope values
       this.instance.exec("UPDATE cronjob_config SET weekly_scope = 'current' WHERE weekly_scope = 'current_week'");
       this.instance.exec("UPDATE cronjob_config SET weekly_scope = 'next' WHERE weekly_scope = 'next_week'");
+
+      // Check admin_config table
+      const hasAdminConfig = this.instance.prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='admin_config'").get() as { count: number };
+      if (hasAdminConfig.count === 0) {
+        Logger.info('Creating admin_config table...');
+        this.instance.exec(`
+          CREATE TABLE IF NOT EXISTS admin_config (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              pin TEXT NOT NULL
+          );
+        `);
+      }
+
+      // Initialize or Reset PIN
+      const adminConfigCount = this.instance.prepare("SELECT count(*) as count FROM admin_config").get() as { count: number };
+      
+      const defaultPinHash = bcrypt.hashSync('000000', 10);
+      
+      if (adminConfigCount.count === 0) {
+         Logger.info('Initializing default admin PIN...');
+         this.instance.prepare("INSERT INTO admin_config (pin) VALUES (?)").run(defaultPinHash);
+      }
+
+      if (process.env.RESET_PIN === 'TRUE') {
+         Logger.info('RESET_PIN is set to TRUE. Resetting admin PIN to 000000...');
+         this.instance.prepare("UPDATE admin_config SET pin = ?").run(defaultPinHash);
+      }
 
       Logger.info('Migrations completed successfully');
     } catch (error) {

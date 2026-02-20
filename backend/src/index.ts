@@ -8,6 +8,7 @@ import { eventsRoutes } from './routes/events';
 import { holidaysRoutes } from './routes/holidays';
 import { companyHolidaysRoutes } from './routes/companyHolidays';
 import { cronjobRoutes } from './routes/cronjobs';
+import { authRoutes } from './routes/auth';
 import { loggerMiddleware } from './middleware/logger';
 import { CronjobService } from './services/cronjobService';
 import { EventMergeService } from './services/eventMergeService';
@@ -72,6 +73,7 @@ const app = new Elysia()
   .use(holidaysRoutes)
   .use(companyHolidaysRoutes)
   .use(cronjobRoutes)
+  .use(authRoutes)
   .listen(config.port);
 
 Logger.info(`🚀 Paracal API is running at http://localhost:${config.port}`);

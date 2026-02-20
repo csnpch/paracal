@@ -1,17 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+import { getApiDatabase } from '../services/apiDatabase';
+
 interface AuthContextType {
   isAdminAuthenticated: boolean;
-  login: (username: string, password: string) => boolean;
+  login: (pin: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const ADMIN_CREDENTIALS = {
-  username: import.meta.env.VITE_ADMIN_USERNAME || 'calendar.adm',
-  password: import.meta.env.VITE_ADMIN_PASSWORD || '!C@len12',
-};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
@@ -22,8 +19,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('adminAuthenticated', isAdminAuthenticated.toString());
   }, [isAdminAuthenticated]);
 
-  const login = (username: string, password: string): boolean => {
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+  const login = async (pin: string): Promise<boolean> => {
+    const apiDb = getApiDatabase();
+    const success = await apiDb.loginWithPin(pin);
+
+    if (success) {
       setIsAdminAuthenticated(true);
       return true;
     }

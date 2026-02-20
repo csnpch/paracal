@@ -2,6 +2,8 @@ import { Elysia, t } from 'elysia';
 import { EventService } from '../services/eventService';
 import { EventMergeService } from '../services/eventMergeService';
 import config from '../config';
+import { getDatabase } from '../database/connection';
+import bcrypt from 'bcryptjs';
 import Logger from '../utils/logger';
 
 const eventService = new EventService();
@@ -28,9 +30,20 @@ const idParam = t.Object({ id: t.String() });
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function validateAdminPassword(password: string | undefined): void {
-  if (!password || password !== config.adminPassword) {
-    throw new Error('Invalid password');
+function validateAdminPassword(pin: string | undefined): void {
+  if (!pin) {
+    throw new Error('Invalid PIN');
+  }
+  const db = getDatabase();
+  const adminConfig = db.prepare("SELECT pin FROM admin_config ORDER BY id DESC LIMIT 1").get() as { pin: string } | undefined;
+  
+  if (!adminConfig) {
+    throw new Error('Admin config not found');
+  }
+
+  const isValid = bcrypt.compareSync(pin, adminConfig.pin);
+  if (!isValid) {
+    throw new Error('Invalid PIN');
   }
 }
 

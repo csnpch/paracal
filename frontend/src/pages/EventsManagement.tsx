@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
@@ -11,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getApiDatabase, Event, Employee } from '@/services/apiDatabase';
 import { EventModal } from '@/components/EventModal';
-import { Trash2, AlertTriangle, ChevronLeft, ChevronRight, X, Search, Calendar as CalendarIcon, Edit } from 'lucide-react';
+import { Trash2, AlertTriangle, ChevronLeft, ChevronRight, X, Search, Calendar as CalendarIcon, Edit, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { LEAVE_TYPE_LABELS } from '@/lib/utils';
 import type { LeaveType } from '@/lib/utils';
@@ -48,6 +49,7 @@ const EventsManagement = () => {
   const [selectedYear, setSelectedYear] = useState(moment().year());
   const [yearForDeletion, setYearForDeletion] = useState(moment().year() - 1);
   const [deleting, setDeleting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const apiDb = getApiDatabase();
 
@@ -710,13 +712,31 @@ const EventsManagement = () => {
                 )}
 
                 <div>
-                  <label className="text-sm font-medium">รหัสผ่านยืนยัน</label>
-                  <Input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="กรอกรหัสผ่าน Management"
-                  />
+                  <label className="text-sm font-medium">PIN ยืนยัน (6 หลัก)</label>
+                  <div className="flex justify-center items-center space-x-2 relative w-fit mx-auto mt-2">
+                    <InputOTP
+                      id="password"
+                      maxLength={6}
+                      value={password}
+                      onChange={(val) => setPassword(val)}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} hideChar={!showPassword} />
+                        <InputOTPSlot index={1} hideChar={!showPassword} />
+                        <InputOTPSlot index={2} hideChar={!showPassword} />
+                        <InputOTPSlot index={3} hideChar={!showPassword} />
+                        <InputOTPSlot index={4} hideChar={!showPassword} />
+                        <InputOTPSlot index={5} hideChar={!showPassword} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute -right-10 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 

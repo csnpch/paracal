@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminLoginModal } from './AdminLoginModal';
+import { AdminChangePinModal } from './AdminChangePinModal';
 import {
   CalendarDays,
   Building2,
@@ -17,7 +18,8 @@ import {
   LayoutDashboard,
   LogOut,
   Calendar,
-  FileText
+  FileText,
+  KeyRound
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -29,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
   const { theme, toggleTheme } = useTheme();
   const { isAdminAuthenticated, logout } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
 
   const isCurrentPage = (page: string) => currentPage === page;
 
@@ -140,6 +143,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                         ตั้งค่า Cronjob
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setShowChangePinModal(true)}
+                        className="px-4 py-3"
+                      >
+                        <KeyRound className="w-4 h-4 mr-2" />
+                        เปลี่ยนรหัส PIN
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { logout(); navigate('/'); }} className="px-4 py-3 text-red-600">
                         <LogOut className="w-4 h-4 mr-2" />
                         Logout
@@ -174,6 +184,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
         onSuccess={() => {
           setShowLoginModal(false);
         }}
+      />
+
+      <AdminChangePinModal
+        key={showChangePinModal ? 'pin-open' : 'pin-closed'}
+        isOpen={showChangePinModal}
+        onClose={() => setShowChangePinModal(false)}
       />
     </div>
   );

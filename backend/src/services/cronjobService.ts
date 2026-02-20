@@ -161,7 +161,7 @@ export class CronjobService {
     }
   }
 
-  async testNotification(id: number): Promise<{ success: boolean; error?: string }> {
+  async testNotification(id: number, customMessage?: string): Promise<{ success: boolean; error?: string }> {
     const cfg = this.getConfigById(id);
     if (!cfg) return { success: false, error: `Cronjob configuration ${id} not found` };
 
@@ -170,11 +170,11 @@ export class CronjobService {
       const scope = cfg.weekly_scope || 'current';
       const { startDate, endDate } = this.getWeekDateRange(scope);
       const events = this.eventService.getEventsByDateRange(startDate, endDate);
-      return NotificationService.sendWeeklyNotification(events, cfg.webhook_url, startDate, endDate, scope);
+      return NotificationService.sendWeeklyNotification(events, cfg.webhook_url, startDate, endDate, scope, customMessage);
     } else {
       const notificationDate = this.getNotificationDate(cfg.notification_days);
       const events = this.eventService.getEventsByDate(notificationDate);
-      return NotificationService.sendDailyNotification(events, cfg.webhook_url, notificationDate, cfg.notification_days);
+      return NotificationService.sendDailyNotification(events, cfg.webhook_url, notificationDate, cfg.notification_days, customMessage);
     }
   }
 

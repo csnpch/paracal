@@ -198,7 +198,8 @@ export const deleteCronjobConfig = async (
 };
 
 export const testCronjobNotification = async (
-  id: number
+  id: number,
+  customMessage?: string
 ): Promise<ApiResponse<null>> => {
-  return apiClient.post<ApiResponse<null>>(`/cronjobs/${id}/test`, {});
+  return apiClient.post<ApiResponse<null>>(`/cronjobs/${id}/test`, { customMessage });
 };

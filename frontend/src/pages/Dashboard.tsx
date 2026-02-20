@@ -350,9 +350,13 @@ const Dashboard = () => {
                               key={type}
                               variant="outline"
                               style={{
-                                backgroundColor: `${LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other}20`,
+                                backgroundColor: theme === 'dark'
+                                  ? (LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other)
+                                  : `${LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other}30`,
                                 borderColor: LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other,
-                                color: LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other
+                                color: theme === 'dark'
+                                  ? '#ffffff'
+                                  : (LEAVE_TYPE_THEME_COLORS[type as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other)
                               }}
                             >
                               {LEAVE_TYPE_LABELS[type as keyof typeof LEAVE_TYPE_LABELS] || type}: {count}

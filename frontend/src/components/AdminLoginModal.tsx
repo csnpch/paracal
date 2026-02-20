@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -15,22 +14,19 @@ interface AdminLoginModalProps {
 }
 
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    if (login(username, password)) {
-      setUsername('');
-      setPassword('');
+
+    const success = await login(pin);
+    if (success) {
+      setPin('');
       setError('');
-      setShowPassword(false);
       onSuccess();
       onClose();
       // Use setTimeout to ensure modal closes before navigation
@@ -38,15 +34,14 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
         navigate('/dashboard');
       }, 100);
     } else {
-      setError('Invalid username or password');
+      setError('รหัส PIN ไม่ถูกต้อง');
+      setPin('');
     }
   };
 
   const handleClose = () => {
-    setUsername('');
-    setPassword('');
+    setPin('');
     setError('');
-    setShowPassword(false);
     onClose();
   };
 
@@ -67,8 +62,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   return (
-    <Dialog 
-      open={isOpen} 
+    <Dialog
+      open={isOpen}
       onOpenChange={(open) => {
         if (!open) {
           handleClose();
@@ -82,37 +77,25 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
+            <Label htmlFor="pin">รหัส PIN 6 หลัก</Label>
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="flex items-center space-x-3 w-fit mx-auto">
+                <InputOTP
+                  id="pin"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(val: string) => setPin(val)}
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} hideChar={true} />
+                    <InputOTPSlot index={1} hideChar={true} />
+                    <InputOTPSlot index={2} hideChar={true} />
+                    <InputOTPSlot index={3} hideChar={true} />
+                    <InputOTPSlot index={4} hideChar={true} />
+                    <InputOTPSlot index={5} hideChar={true} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
             </div>
           </div>
           {error && (
@@ -122,9 +105,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
           )}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
+              ยกเลิก
             </Button>
-            <Button type="submit">Login</Button>
+            <Button type="submit" disabled={pin.length !== 6}>เข้าสู่ระบบ</Button>
           </div>
         </form>
       </DialogContent>

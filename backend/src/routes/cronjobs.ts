@@ -104,13 +104,17 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     }
   }, { params: t.Object({ id: t.String() }) })
 
-  .post('/:id/test', async ({ params: { id } }) => {
+  .post('/:id/test', async ({ params: { id }, body }) => {
     try {
+      const { customMessage } = (body as any) || {};
       Logger.info(`Testing notification for cronjob ${id}`);
-      const result = await cronjobService.testNotification(Number(id));
+      const result = await cronjobService.testNotification(Number(id), customMessage);
       return { success: result.success, message: result.success ? 'Test notification sent successfully' : result.error };
     } catch (error) {
       Logger.error(`Error testing notification ${id}:`, error);
       throw error;
     }
-  }, { params: t.Object({ id: t.String() }) });
+  }, { 
+    params: t.Object({ id: t.String() }),
+    body: t.Optional(t.Object({ customMessage: t.Optional(t.String()) }))
+  });

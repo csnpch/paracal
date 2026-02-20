@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Calendar, Clock, User, TrendingUp } from 'lucide-react';
 import { getEventsByEmployee, EmployeeEvent } from '@/services/api';
 import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS } from '@/lib/utils';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface UserDetailsModalProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
   employeeData,
   dateRange,
 }) => {
+  const { theme } = useTheme();
   const [events, setEvents] = useState<EmployeeEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -226,9 +228,13 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                                     <Badge
                                                       variant="outline"
                                                       style={{
-                                                        backgroundColor: `${LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other}20`,
+                                                        backgroundColor: theme === 'dark'
+                                                          ? (LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other)
+                                                          : `${LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other}30`,
                                                         borderColor: LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other,
-                                                        color: LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other
+                                                        color: theme === 'dark'
+                                                          ? '#ffffff'
+                                                          : (LEAVE_TYPE_THEME_COLORS[event.leaveType as keyof typeof LEAVE_TYPE_THEME_COLORS] || LEAVE_TYPE_THEME_COLORS.other)
                                                       }}
                                                     >
                                                       {LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}

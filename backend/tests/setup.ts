@@ -57,6 +57,11 @@ if (!global.mockDatabase) {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE admin_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pin TEXT NOT NULL
+  );
 `);
 
   // Insert test data (only once)
@@ -71,6 +76,9 @@ if (!global.mockDatabase) {
     INSERT INTO holidays (name, date) VALUES 
       ('วันปีใหม่', '2025-01-01'),
       ('วันลอยกระทง', '2025-11-15');
+
+    INSERT INTO admin_config (pin) VALUES
+      ('$2a$10$wE9s9r9/HXY2pU7oD4.aMe6JbY5wE6tLz/P5xI/hWfSZZU148yBWa'); -- hash for '000000'
   `);
 }
 
@@ -112,6 +120,3 @@ export function cleanupDatabase() {
   `);
 }
 
-afterAll(() => {
-  global.mockDatabase.close();
-});

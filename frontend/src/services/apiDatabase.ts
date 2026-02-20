@@ -12,6 +12,24 @@ import type {
 export type { Employee, Event } from '../../../shared/types';
 
 class ApiDatabaseService {
+  // ── Auth operations ──────────────────────────────────────────
+  
+  async loginWithPin(pin: string): Promise<boolean> {
+    try {
+      const response = await apiClient.post<{ success: boolean; message?: string }>('/auth/login', { pin });
+      return response.success;
+    } catch {
+      return false;
+    }
+  }
+
+  async changeAdminPin(oldPin: string, newPin: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      return await apiClient.post<{ success: boolean; message?: string }>('/auth/change-pin', { oldPin, newPin });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัส PIN' };
+    }
+  }
   // ── Employee operations ──────────────────────────────────────
 
   async createEmployee(employee: CreateEmployeeRequest): Promise<Employee> {
@@ -120,16 +138,16 @@ class ApiDatabaseService {
 
   // ── Bulk Delete ──────────────────────────────────────────────
 
-  async deleteEventsByMonth(year: number, month: number, password: string): Promise<{ deletedCount: number }> {
-    return apiClient.delete(`/events/bulk/month/${year}/${month}`, { password });
+  async deleteEventsByMonth(year: number, month: number, pin: string): Promise<{ deletedCount: number }> {
+    return apiClient.delete(`/events/bulk/month/${year}/${month}`, { password: pin });
   }
 
-  async deleteEventsByYear(year: number, password: string): Promise<{ deletedCount: number }> {
-    return apiClient.delete(`/events/bulk/year/${year}`, { password });
+  async deleteEventsByYear(year: number, pin: string): Promise<{ deletedCount: number }> {
+    return apiClient.delete(`/events/bulk/year/${year}`, { password: pin });
   }
 
-  async deleteAllEvents(password: string): Promise<{ deletedCount: number }> {
-    return apiClient.delete('/events/bulk/all', { password });
+  async deleteAllEvents(pin: string): Promise<{ deletedCount: number }> {
+    return apiClient.delete('/events/bulk/all', { password: pin });
   }
 }
 

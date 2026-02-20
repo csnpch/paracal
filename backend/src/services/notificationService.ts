@@ -111,7 +111,7 @@ function buildEventListByDate(events: Event[]): string {
 
 // ─── Adaptive Card Builder ───────────────────────────────────
 
-function createAdaptiveCard(headerText: string, summaryText: string, eventListText: string): TeamsNotificationPayload {
+function createAdaptiveCard(headerText: string, summaryText: string, eventListText: string, customMessage?: string): TeamsNotificationPayload {
   const appUrl = config.appUrl;
   const appName = config.appName;
 
@@ -121,30 +121,59 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
 
   if (!eventListText) {
     // No events card
+    const items: Array<Record<string, any>> = [];
+    
+    if (customMessage) {
+      items.push({
+        type: 'TextBlock',
+        spacing: 'None',
+        text: `📢 ${customMessage}`,
+        wrap: true,
+        color: 'attention',
+        weight: 'Bolder'
+      });
+    }
+
+    items.push({ type: 'TextBlock', spacing: customMessage ? 'Medium' : 'None', text: headerText, wrap: true, color: 'good', weight: 'Bolder' });
+    items.push({ type: 'TextBlock', spacing: 'None', text: summaryText, wrap: true, color: 'accent' });
+
     bodyItems.push(
       { type: 'TextBlock', spacing: 'Medium', text: `[เปิด ${appName}](${appUrl}/)`, wrap: true, color: 'accent' },
       {
         type: 'ColumnSet',
         columns: [{
           type: 'Column', width: 'stretch',
-          items: [
-            { type: 'TextBlock', spacing: 'None', text: headerText, wrap: true, color: 'good', weight: 'Bolder' },
-            { type: 'TextBlock', spacing: 'None', text: summaryText, wrap: true, color: 'accent' },
-          ],
+          items,
         }],
       },
     );
   } else {
     // Has events card
+    const items: Array<Record<string, any>> = [];
+
+    if (customMessage) {
+      items.push({
+        type: 'TextBlock',
+        spacing: 'None',
+        text: `📢 ${customMessage}`,
+        wrap: true,
+        color: 'attention',
+        weight: 'Bolder'
+      });
+    }
+
+    items.push({ type: 'TextBlock', spacing: customMessage ? 'Medium' : 'None', text: headerText, wrap: true, color: 'default', weight: 'Bolder' });
+
+    items.push(
+      { type: 'TextBlock', spacing: 'None', text: summaryText.trim(), wrap: true, color: 'default' },
+      { type: 'TextBlock', spacing: 'None', text: eventListText.trim(), wrap: true, color: 'default' }
+    );
+
     bodyItems.push({
       type: 'ColumnSet',
       columns: [{
         type: 'Column', width: 'stretch',
-        items: [
-          { type: 'TextBlock', spacing: 'None', text: headerText, wrap: true, color: 'default', weight: 'Bolder' },
-          { type: 'TextBlock', spacing: 'None', text: summaryText.trim(), wrap: true, color: 'default' },
-          { type: 'TextBlock', spacing: 'None', text: eventListText.trim(), wrap: true, color: 'default' },
-        ],
+        items,
       }],
     });
   }
@@ -169,7 +198,7 @@ export class NotificationService {
   /**
    * Create daily notification payload.
    */
-  static createDailyPayload(events: Event[], notificationDate: string, notificationDays: number): TeamsNotificationPayload {
+  static createDailyPayload(events: Event[], notificationDate: string, notificationDays: number, customMessage?: string): TeamsNotificationPayload {
     let dateLabel: string;
     if (notificationDays === 0) dateLabel = 'วันนี้';
     else if (notificationDays === 1) dateLabel = 'พรุ่งนี้';
@@ -180,30 +209,30 @@ export class NotificationService {
     const headerText = `📅 แจ้งเตือนปฏิทิน - ${dateLabel}`;
 
     if (events.length === 0) {
-      return createAdaptiveCard(headerText, `${dateFormatted} | ไม่มีเหตุการณ์${dateLabel} ✅`, '');
+      return createAdaptiveCard(headerText, `${dateFormatted} | ไม่มีเหตุการณ์${dateLabel} ✅`, '', customMessage);
     }
 
     const summaryText = `**${dateFormatted}** | **${events.length} เหตุการณ์**`;
     const eventListText = buildEventListByType(events);
-    return createAdaptiveCard(headerText, summaryText, eventListText);
+    return createAdaptiveCard(headerText, summaryText, eventListText, customMessage);
   }
 
   /**
    * Create weekly notification payload.
    */
-  static createWeeklyPayload(events: Event[], startDate: string, endDate: string, scope: 'current' | 'next'): TeamsNotificationPayload {
+  static createWeeklyPayload(events: Event[], startDate: string, endDate: string, scope: 'current' | 'next', customMessage?: string): TeamsNotificationPayload {
     const startFormatted = formatDate(startDate);
     const endFormatted = formatDate(endDate);
     const scopeText = scope === 'current' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า';
     const headerText = `📅 แจ้งเตือนปฏิทิน - ${scopeText}`;
 
     if (events.length === 0) {
-      return createAdaptiveCard(headerText, `${startFormatted} - ${endFormatted} | ไม่มีเหตุการณ์${scopeText} ✅`, '');
+      return createAdaptiveCard(headerText, `${startFormatted} - ${endFormatted} | ไม่มีเหตุการณ์${scopeText} ✅`, '', customMessage);
     }
 
     const summaryText = `**${startFormatted} - ${endFormatted}** | **${events.length} เหตุการณ์**`;
     const eventListText = buildEventListByDate(events);
-    return createAdaptiveCard(headerText, summaryText, eventListText);
+    return createAdaptiveCard(headerText, summaryText, eventListText, customMessage);
   }
 
   /**
@@ -243,9 +272,9 @@ export class NotificationService {
    * Convenience: create daily payload + send.
    */
   static async sendDailyNotification(
-    events: Event[], webhookUrl: string, notificationDate: string, notificationDays: number,
+    events: Event[], webhookUrl: string, notificationDate: string, notificationDays: number, customMessage?: string
   ): Promise<{ success: boolean; error?: string }> {
-    const payload = this.createDailyPayload(events, notificationDate, notificationDays);
+    const payload = this.createDailyPayload(events, notificationDate, notificationDays, customMessage);
     return this.sendNotification(webhookUrl, payload);
   }
 
@@ -253,9 +282,9 @@ export class NotificationService {
    * Convenience: create weekly payload + send.
    */
   static async sendWeeklyNotification(
-    events: Event[], webhookUrl: string, startDate: string, endDate: string, scope: 'current' | 'next',
+    events: Event[], webhookUrl: string, startDate: string, endDate: string, scope: 'current' | 'next', customMessage?: string
   ): Promise<{ success: boolean; error?: string }> {
-    const payload = this.createWeeklyPayload(events, startDate, endDate, scope);
+    const payload = this.createWeeklyPayload(events, startDate, endDate, scope, customMessage);
     return this.sendNotification(webhookUrl, payload);
   }
 }
