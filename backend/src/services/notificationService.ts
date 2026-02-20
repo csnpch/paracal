@@ -41,6 +41,7 @@ function isValidWebhookResponse(webhookUrl: string, responseText: string, status
   const validDomains = [
     'hooks.slack.com', 'outlook.office.com', 'hooks.teams.microsoft.com',
     'discord.com', 'discordapp.com', 'hooks.zapier.com', 'logic.azure.com', 'httpbin.org',
+    'powerplatform.com',
   ];
 
   const urlDomain = new URL(webhookUrl).hostname;
@@ -119,55 +120,36 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
     { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳️ **${appName}**` },
   ];
 
-  if (!eventListText) {
+  if (customMessage) {
+    bodyItems.push({
+      type: 'TextBlock',
+      spacing: 'Medium',
+      text: `📢 ${customMessage}`,
+      wrap: true,
+      color: 'attention',
+      weight: 'Bolder'
+    });
+  } else if (!eventListText) {
     // No events card
-    const items: Array<Record<string, any>> = [];
-    
-    if (customMessage) {
-      items.push({
-        type: 'TextBlock',
-        spacing: 'None',
-        text: `📢 ${customMessage}`,
-        wrap: true,
-        color: 'attention',
-        weight: 'Bolder'
-      });
-    }
+    const items: Array<Record<string, any>> = [
+      { type: 'TextBlock', spacing: 'None', text: headerText, wrap: true, color: 'good', weight: 'Bolder' },
+      { type: 'TextBlock', spacing: 'None', text: summaryText, wrap: true, color: 'accent' }
+    ];
 
-    items.push({ type: 'TextBlock', spacing: customMessage ? 'Medium' : 'None', text: headerText, wrap: true, color: 'good', weight: 'Bolder' });
-    items.push({ type: 'TextBlock', spacing: 'None', text: summaryText, wrap: true, color: 'accent' });
-
-    bodyItems.push(
-      { type: 'TextBlock', spacing: 'Medium', text: `[เปิด ${appName}](${appUrl}/)`, wrap: true, color: 'accent' },
-      {
-        type: 'ColumnSet',
-        columns: [{
-          type: 'Column', width: 'stretch',
-          items,
-        }],
-      },
-    );
+    bodyItems.push({
+      type: 'ColumnSet',
+      columns: [{
+        type: 'Column', width: 'stretch',
+        items,
+      }],
+    });
   } else {
     // Has events card
-    const items: Array<Record<string, any>> = [];
-
-    if (customMessage) {
-      items.push({
-        type: 'TextBlock',
-        spacing: 'None',
-        text: `📢 ${customMessage}`,
-        wrap: true,
-        color: 'attention',
-        weight: 'Bolder'
-      });
-    }
-
-    items.push({ type: 'TextBlock', spacing: customMessage ? 'Medium' : 'None', text: headerText, wrap: true, color: 'default', weight: 'Bolder' });
-
-    items.push(
+    const items: Array<Record<string, any>> = [
+      { type: 'TextBlock', spacing: 'None', text: headerText, wrap: true, color: 'default', weight: 'Bolder' },
       { type: 'TextBlock', spacing: 'None', text: summaryText.trim(), wrap: true, color: 'default' },
       { type: 'TextBlock', spacing: 'None', text: eventListText.trim(), wrap: true, color: 'default' }
-    );
+    ];
 
     bodyItems.push({
       type: 'ColumnSet',
