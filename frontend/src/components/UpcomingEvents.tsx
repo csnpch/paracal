@@ -39,12 +39,12 @@ const EventListHeader: React.FC<{ count?: number }> = ({ count }) => (
 
 const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filteredEmployeeId, onNavigateToMonth, onEventHover, onEventHoverEnd, onEmployeeFilter }) => {
   moment.locale('th');
-  
+
   // กรองเหตุการณ์ที่จะเกิดขึ้นในอนาคต
   const upcomingEvents = events
     .filter(event => {
       const today = moment().startOf('day');
-      
+
       // Check both legacy date field and new range fields
       if (event.startDate && event.endDate) {
         // For range events, check if event end date is after today (future only)
@@ -55,7 +55,7 @@ const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filt
         const eventDate = moment(event.date);
         return eventDate.isSameOrAfter(today);
       }
-      
+
       return false;
     })
     .sort((a, b) => {
@@ -78,9 +78,8 @@ const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filt
       'sick': 'ป่วย',
       'vacation': 'พักร้อน',
       'personal': 'กิจ',
-      'maternity': 'คลอด',
-      'paternity': 'คลอด',
-      'annual': 'พักร้อน',
+      'unpaid': 'ไม่รับค่าจ้าง',
+      'compensatory': 'หยุดชดเชย (OT)',
       'other': 'อื่นๆ'
     };
     return leaveTypes[leaveType] || leaveType;
@@ -92,6 +91,8 @@ const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filt
       'vacation': 'bg-blue-50 text-blue-600 border-blue-200',
       'personal': 'bg-stone-50 text-stone-600 border-stone-200',
       'sick': 'bg-purple-50 text-purple-600 border-purple-200',
+      'unpaid': 'bg-slate-50 text-slate-600 border-slate-200',
+      'compensatory': 'bg-emerald-50 text-emerald-600 border-emerald-200',
       'other': 'bg-gray-50 text-gray-600 border-gray-200'
     };
     return colors[leaveType] || colors['other'];
@@ -112,90 +113,88 @@ const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filt
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 flex flex-col max-h-[calc(100vh-200px)]">
       <EventListHeader count={upcomingEvents.length} />
       <div className="overflow-y-auto flex-1">
-      <div className="space-y-1">
-        {upcomingEvents.map((event, index) => {
-          const startDate = event.startDate || event.date;
-          const endDate = event.endDate || event.date;
-          const isMultiDay = startDate !== endDate;
-          
-          const isFiltered = filteredEmployeeId === event.employeeId;
-          
-          const handleClick = () => {
-            if (onEmployeeFilter) {
-              onEmployeeFilter(event.employeeId);
-            }
-          };
-          
-          const handleMouseEnter = () => {
-            if (onEventHover) {
-              onEventHover(startDate, endDate);
-            }
-          };
-          
-          const handleMouseLeave = () => {
-            if (onEventHoverEnd) {
-              onEventHoverEnd();
-            }
-          };
-          
-          return (
-            <div
-              key={event.id}
-              className={`flex items-center gap-2 p-1.5 rounded text-xs transition-colors cursor-pointer ${
-                isFiltered 
-                  ? 'bg-blue-100 dark:bg-blue-900/50 border-2 border-blue-400 dark:border-blue-600' 
+        <div className="space-y-1">
+          {upcomingEvents.map((event, index) => {
+            const startDate = event.startDate || event.date;
+            const endDate = event.endDate || event.date;
+            const isMultiDay = startDate !== endDate;
+
+            const isFiltered = filteredEmployeeId === event.employeeId;
+
+            const handleClick = () => {
+              if (onEmployeeFilter) {
+                onEmployeeFilter(event.employeeId);
+              }
+            };
+
+            const handleMouseEnter = () => {
+              if (onEventHover) {
+                onEventHover(startDate, endDate);
+              }
+            };
+
+            const handleMouseLeave = () => {
+              if (onEventHoverEnd) {
+                onEventHoverEnd();
+              }
+            };
+
+            return (
+              <div
+                key={event.id}
+                className={`flex items-center gap-2 p-1.5 rounded text-xs transition-colors cursor-pointer ${isFiltered
+                  ? 'bg-blue-100 dark:bg-blue-900/50 border-2 border-blue-400 dark:border-blue-600'
                   : 'hover:bg-green-50 dark:hover:bg-green-900/30'
-              }`}
-              onClick={handleClick}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
-            >
-              {/* Number */}
-              <div className="flex-shrink-0 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-[10px] font-medium">
-                {index + 1}
-              </div>
-              
-              {/* Employee Name */}
-              <div 
-                className={`flex-shrink-0 font-medium min-w-0 max-w-32 truncate transition-colors ${
-                  isFiltered 
-                    ? 'text-blue-700 dark:text-blue-300 underline' 
-                    : 'text-gray-900 dark:text-white'
-                }`}
-                title={getEmployeeName(event.employeeId)}
+                  }`}
+                onClick={handleClick}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
               >
-                {getEmployeeName(event.employeeId)}
-              </div>
-              
-              {/* Leave Type Badge */}
-              <div className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium border ${getLeaveTypeColor(event.leaveType)}`}>
-                {getLeaveTypeText(event.leaveType)}
-              </div>
-              
-              {/* Date */}
-              <div className="flex-shrink-0 text-gray-600 dark:text-gray-400">
-                {isMultiDay ? (
-                  <span>{moment(startDate).format('DD/MM')} - {moment(endDate).format('DD/MM')}</span>
-                ) : (
-                  <span>{moment(startDate).format('DD/MM')}</span>
+                {/* Number */}
+                <div className="flex-shrink-0 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-[10px] font-medium">
+                  {index + 1}
+                </div>
+
+                {/* Employee Name */}
+                <div
+                  className={`flex-shrink-0 font-medium min-w-0 max-w-32 truncate transition-colors ${isFiltered
+                    ? 'text-blue-700 dark:text-blue-300 underline'
+                    : 'text-gray-900 dark:text-white'
+                    }`}
+                  title={getEmployeeName(event.employeeId)}
+                >
+                  {getEmployeeName(event.employeeId)}
+                </div>
+
+                {/* Leave Type Badge */}
+                <div className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium border ${getLeaveTypeColor(event.leaveType)}`}>
+                  {getLeaveTypeText(event.leaveType)}
+                </div>
+
+                {/* Date */}
+                <div className="flex-shrink-0 text-gray-600 dark:text-gray-400">
+                  {isMultiDay ? (
+                    <span>{moment(startDate).format('DD/MM')} - {moment(endDate).format('DD/MM')}</span>
+                  ) : (
+                    <span>{moment(startDate).format('DD/MM')}</span>
+                  )}
+                </div>
+
+                {/* Year if not current year */}
+                <div className="flex-shrink-0 text-gray-500 dark:text-gray-500 text-[10px]">
+                  {moment(startDate).year() !== moment().year() ? moment(startDate).format('YYYY') : ''}
+                </div>
+
+                {/* Description */}
+                {event.description && (
+                  <div className="flex-1 text-gray-500 dark:text-gray-400 truncate min-w-0">
+                    {event.description}
+                  </div>
                 )}
               </div>
-              
-              {/* Year if not current year */}
-              <div className="flex-shrink-0 text-gray-500 dark:text-gray-500 text-[10px]">
-                {moment(startDate).year() !== moment().year() ? moment(startDate).format('YYYY') : ''}
-              </div>
-              
-              {/* Description */}
-              {event.description && (
-                <div className="flex-1 text-gray-500 dark:text-gray-400 truncate min-w-0">
-                  {event.description}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

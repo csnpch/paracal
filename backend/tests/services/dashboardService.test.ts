@@ -355,7 +355,7 @@ describe("DashboardService", () => {
       const summary = eventService.getDashboardSummary(
         undefined,
         undefined,
-        "maternity"
+        "other"
       );
 
       expect(summary.monthlyStats.totalEvents).toBe(0);
