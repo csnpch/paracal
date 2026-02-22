@@ -44,17 +44,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-600">
-      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-2 md:py-4">
+      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-1.5 sm:py-2 md:py-4">
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
-            className="flex items-center space-x-0.5 sm:space-x-1.5 md:space-x-2.5 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="flex items-center space-x-1.5 md:space-x-2.5 p-1 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
-            <div className="p-1.5 sm:p-2 md:p-3 bg-blue-100 dark:bg-gray-700 rounded-lg">
-              <Building2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600 dark:text-gray-200" />
+            <div className="p-1 sm:p-2 md:p-3 bg-blue-100 dark:bg-gray-700 rounded-lg">
+              <Building2 className="w-4 h-4 sm:w-6 sm:h-6 md:w-8 md:h-8 text-blue-600 dark:text-gray-200" />
             </div>
-            <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-900 dark:text-white">Paracal</h1>
+            <h1 className="text-sm sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-900 dark:text-white">Paracal</h1>
           </Button>
 
           {/* Navigation Menu */}

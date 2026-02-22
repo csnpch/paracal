@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateEventPopover } from '@/components/CreateEventPopover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -60,6 +60,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   const [selectedDateRange, setSelectedDateRange] = useState<Date[]>([]);
   const [hoverDateRange, setHoverDateRange] = useState<Date[]>([]);
 
+  const [showWeekends, setShowWeekends] = useState(true);
+
   // Safely handle window resize
   React.useEffect(() => {
     const updateMaxEvents = () => {
@@ -71,6 +73,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
     updateMaxEvents();
     window.addEventListener('resize', updateMaxEvents);
+
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setShowWeekends(false);
+    }
 
     return () => window.removeEventListener('resize', updateMaxEvents);
   }, []);
@@ -401,6 +407,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const allVisibleDays = weeks.flat();
 
+  const gridColsClass = showWeekends ? 'grid-cols-7' : 'grid-cols-5';
+  const visibleDaysOfWeek = showWeekends ? DAYS_OF_WEEK : DAYS_OF_WEEK.filter((_, i) => i !== 0 && i !== 6);
+
   return (
     <TooltipProvider>
       <div className="bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
@@ -452,6 +461,21 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               )}
 
               <div className="flex space-x-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowWeekends(!showWeekends)}
+                  className={`h-6 sm:h-7 px-2 text-[11px] sm:text-sm font-medium transition-colors duration-200 ${!showWeekends
+                      ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600/80'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
+                    }`}
+                  title={showWeekends ? "ซ่อนวันหยุดเสาร์-อาทิตย์" : "แสดงวันหยุดเสาร์-อาทิตย์"}
+                >
+                  <span className="flex items-center gap-1">
+                    {showWeekends ? <EyeOff className="w-3 h-3 sm:w-4 sm:h-4" /> : <Eye className="w-3 h-3 sm:w-4 sm:h-4" />}
+                    {showWeekends ? 'ซ่อน ส.-อา.' : 'แสดง ส.-อา.'}
+                  </span>
+                </Button>
                 <Button variant="outline" size="sm" onClick={onTodayClick} className="h-6 sm:h-7 px-2 text-xs sm:text-sm text-gray-500 hover:text-gray-700 dark:text-white dark:hover:text-gray-300 border-gray-200 dark:border-gray-600">
                   วันนี้
                 </Button>
@@ -468,12 +492,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
         {/* Mobile View Mode Tabs */}
         {onViewModeChange && (
-          <div className="sm:hidden px-2 pt-2 pb-1 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700">
+          <div className="sm:hidden px-2 pt-2 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 border-b border-gray-200 dark:border-gray-600">
             <Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as ViewMode)} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm">
-                <TabsTrigger value="month" className="text-sm py-1.5 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/30 dark:data-[state=active]:text-blue-300">เดือน</TabsTrigger>
-                <TabsTrigger value="week" className="text-sm py-1.5 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/30 dark:data-[state=active]:text-blue-300">สัปดาห์</TabsTrigger>
-                <TabsTrigger value="day" className="text-sm py-1.5 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 dark:data-[state=active]:bg-blue-900/30 dark:data-[state=active]:text-blue-300">วัน</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 bg-white/60 dark:bg-gray-800/50 p-1 h-auto rounded-lg border border-gray-200/50 dark:border-gray-700">
+                <TabsTrigger value="month" className="text-xs py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">เดือน</TabsTrigger>
+                <TabsTrigger value="week" className="text-xs py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">สัปดาห์</TabsTrigger>
+                <TabsTrigger value="day" className="text-xs py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">วัน</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -484,123 +508,132 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
           {viewMode === 'month' ? (
             <>
               {/* Days of week header */}
-              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-1 sm:mb-2">
-                {DAYS_OF_WEEK.map((day, index) => (
-                  <div key={day} className={`p-1 sm:p-2 text-center text-xs font-medium rounded ${index === 0 || index === 6
-                    ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                    }`}>
-                    {day}
-                  </div>
-                ))}
+              <div className={`grid ${gridColsClass} gap-0.5 sm:gap-1 mb-1 sm:mb-2`}>
+                {visibleDaysOfWeek.map((day) => {
+                  const isWeekendHeader = DAYS_OF_WEEK.indexOf(day) === 0 || DAYS_OF_WEEK.indexOf(day) === 6;
+                  return (
+                    <div key={day} className={`p-1 sm:p-2 text-center text-xs font-medium rounded ${isWeekendHeader
+                      ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                      }`}>
+                      {day}
+                    </div>
+                  )
+                })}
               </div>
 
               {/* Calendar weeks */}
               <div className="space-y-0.5 sm:space-y-1">
-                {weeks.map((week, weekIndex) => (
-                  <div key={weekIndex} className="grid grid-cols-7 gap-0.5 sm:gap-1">
-                    {week.map((date, index) => {
-                      const dayEvents = getEventsForDate(date);
-                      const isOtherMonth = !isCurrentMonth(date);
-                      const isTodayDate = isToday(date);
-                      const hasEvents = dayEvents.length > 0;
-                      const thaiHoliday = isHoliday(date);
-                      const companyHoliday = isCompanyHoliday(date);
-                      const weekend = isWeekend(date);
-                      const isHighlighted = highlightedDates.includes(moment(date).format('YYYY-MM-DD'));
+                {weeks.map((week, weekIndex) => {
+                  const visibleDaysInWeek = showWeekends ? week : week.filter(date => {
+                    const day = moment(date).day();
+                    return day !== 0 && day !== 6;
+                  });
 
-                      let bgColor = 'bg-white dark:bg-gray-700';
-                      let textColor = 'text-gray-900 dark:text-white';
-                      let borderColor = 'border-gray-200 dark:border-gray-600';
+                  return (
+                    <div key={weekIndex} className={`grid ${gridColsClass} gap-0.5 sm:gap-1`}>
+                      {visibleDaysInWeek.map((date, index) => {
+                        const dayEvents = getEventsForDate(date);
+                        const isOtherMonth = !isCurrentMonth(date);
+                        const isTodayDate = isToday(date);
+                        const hasEvents = dayEvents.length > 0;
+                        const thaiHoliday = isHoliday(date);
+                        const companyHoliday = isCompanyHoliday(date);
+                        const weekend = isWeekend(date);
+                        const isHighlighted = highlightedDates.includes(moment(date).format('YYYY-MM-DD'));
 
-                      if (isOtherMonth) {
-                        bgColor = 'bg-gray-50 dark:bg-gray-800';
-                        textColor = 'text-gray-400 dark:text-gray-500'; // Adjusted for better visibility
-                        borderColor = 'border-gray-300 dark:border-gray-600';
-                      } else { // For current month days
-                        // Apply weekend styling first if applicable
-                        if (weekend) {
-                          bgColor = 'bg-red-50 dark:bg-red-800/30';
-                          textColor = 'text-red-700 dark:text-red-300';
-                          borderColor = 'border-red-200 dark:border-red-600';
-                        } else if (companyHoliday) {
-                          // Company holidays get red styling (old Thai holiday colors)
-                          textColor = 'text-red-600 dark:text-red-500';
-                          borderColor = 'border-red-100 dark:border-red-800';
-                        } else if (thaiHoliday) {
-                          // Thai holidays get dark gray styling
-                          textColor = 'text-gray-600 dark:text-gray-400';
+                        let bgColor = 'bg-white dark:bg-gray-700';
+                        let textColor = 'text-gray-900 dark:text-white';
+                        let borderColor = 'border-gray-200 dark:border-gray-600';
+
+                        if (isOtherMonth) {
+                          bgColor = 'bg-gray-50 dark:bg-gray-800';
+                          textColor = 'text-gray-400 dark:text-gray-500'; // Adjusted for better visibility
                           borderColor = 'border-gray-300 dark:border-gray-600';
-                        }
+                        } else { // For current month days
+                          // Apply weekend styling first if applicable
+                          if (weekend) {
+                            bgColor = 'bg-red-50 dark:bg-red-800/30';
+                            textColor = 'text-red-700 dark:text-red-300';
+                            borderColor = 'border-red-200 dark:border-red-600';
+                          } else if (companyHoliday) {
+                            // Company holidays get red styling (old Thai holiday colors)
+                            textColor = 'text-red-600 dark:text-red-500';
+                            borderColor = 'border-red-100 dark:border-red-800';
+                          } else if (thaiHoliday) {
+                            // Thai holidays get dark gray styling
+                            textColor = 'text-gray-600 dark:text-gray-400';
+                            borderColor = 'border-gray-300 dark:border-gray-600';
+                          }
 
-                        // Today's styling (overrides previous settings for the current day)
-                        if (isTodayDate) {
-                          bgColor = 'bg-yellow-50 dark:bg-yellow-900/20';
-                          borderColor = 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-200 dark:ring-yellow-600';
-                          textColor = 'text-yellow-900 dark:text-yellow-200 font-semibold';
-                        }
+                          // Today's styling (overrides previous settings for the current day)
+                          if (isTodayDate) {
+                            bgColor = 'bg-yellow-50 dark:bg-yellow-900/20';
+                            borderColor = 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-200 dark:ring-yellow-600';
+                            textColor = 'text-yellow-900 dark:text-yellow-200 font-semibold';
+                          }
 
-                        // Event styling (modifies border and bgColor if it's a plain day with events)
-                        if (hasEvents) {
-                          borderColor = 'border-blue-400 dark:border-gray-500';
-                          // Only change bgColor for events if it's not today, not a weekend,
-                          // and not a non-weekend holiday (which now has default background).
-                          if (!isTodayDate && !weekend && !thaiHoliday && !companyHoliday) {
-                            bgColor = 'bg-blue-25 dark:bg-gray-800/20';
+                          // Event styling (modifies border and bgColor if it's a plain day with events)
+                          if (hasEvents) {
+                            borderColor = 'border-blue-400 dark:border-gray-500';
+                            // Only change bgColor for events if it's not today, not a weekend,
+                            // and not a non-weekend holiday (which now has default background).
+                            if (!isTodayDate && !weekend && !thaiHoliday && !companyHoliday) {
+                              bgColor = 'bg-blue-25 dark:bg-gray-800/20';
+                            }
+                          }
+
+                          // Highlight styling (overrides other styling when highlighted)
+                          if (isHighlighted && !isOtherMonth) {
+                            bgColor = 'bg-green-100 dark:bg-green-900/30';
+                            borderColor = 'border-green-400 dark:border-green-600 ring-1 ring-green-300 dark:ring-green-700';
                           }
                         }
 
-                        // Highlight styling (overrides other styling when highlighted)
-                        if (isHighlighted && !isOtherMonth) {
-                          bgColor = 'bg-green-100 dark:bg-green-900/30';
-                          borderColor = 'border-green-400 dark:border-green-600 ring-1 ring-green-300 dark:ring-green-700';
-                        }
-                      }
+                        const dayContent = (
+                          <div
+                            key={`${weekIndex}-${index}`}
+                            className={`aspect-square flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isDateInSelectedRange(date) || isDateInHoverRange(date) ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!(isDateInSelectedRange(date) || isDateInHoverRange(date)) ? borderColor : ''}`}
+                            onClick={() => handleDateClick(date)}
+                            onMouseDown={() => handleMouseDown(date)}
+                            onMouseEnter={() => handleMouseEnter(date)}
+                            onMouseUp={handleMouseUp}
+                          >
+                            <div className={`text-xs font-medium mb-0.5 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
+                              <span>{moment(date).date()}{thaiHoliday ? '*' : ''}</span>
+                            </div>
 
-                      const dayContent = (
-                        <div
-                          key={`${weekIndex}-${index}`}
-                          className={`min-h-[45px] sm:min-h-[60px] md:min-h-[75px] lg:min-h-[90px] p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isDateInSelectedRange(date) || isDateInHoverRange(date) ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!(isDateInSelectedRange(date) || isDateInHoverRange(date)) ? borderColor : ''}`}
-                          onClick={() => handleDateClick(date)}
-                          onMouseDown={() => handleMouseDown(date)}
-                          onMouseEnter={() => handleMouseEnter(date)}
-                          onMouseUp={handleMouseUp}
-                        >
-                          <div className={`text-xs font-medium mb-0.5 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
-                            <span>{moment(date).date()}{thaiHoliday ? '*' : ''}</span>
-                          </div>
+                            {/* Only show events if it's not a weekend and not a company holiday */}
+                            {!weekend && !companyHoliday && (
+                              <div className={`space-y-0.5 ${isOtherMonth ? 'opacity-40' : ''}`}>
+                                {dayEvents.slice(0, maxVisibleEvents).map((event, eventIndex) => {
+                                  const employeeName = getEmployeeName(event.employeeId);
+                                  const { hasPrevious, hasNext } = getEventContinuity(event, date);
 
-                          {/* Only show events if it's not a weekend and not a company holiday */}
-                          {!weekend && !companyHoliday && (
-                            <div className={`space-y-0.5 ${isOtherMonth ? 'opacity-40' : ''}`}>
-                              {dayEvents.slice(0, maxVisibleEvents).map((event, eventIndex) => {
-                                const employeeName = getEmployeeName(event.employeeId);
-                                const { hasPrevious, hasNext } = getEventContinuity(event, date);
+                                  // Determine border radius based on continuity
+                                  let borderRadius = 'rounded';
+                                  if (hasPrevious && hasNext) {
+                                    borderRadius = 'rounded-none';
+                                  } else if (hasPrevious && !hasNext) {
+                                    borderRadius = 'rounded-l-none rounded-r';
+                                  } else if (!hasPrevious && hasNext) {
+                                    borderRadius = 'rounded-l rounded-r-none';
+                                  }
 
-                                // Determine border radius based on continuity
-                                let borderRadius = 'rounded';
-                                if (hasPrevious && hasNext) {
-                                  borderRadius = 'rounded-none';
-                                } else if (hasPrevious && !hasNext) {
-                                  borderRadius = 'rounded-l-none rounded-r';
-                                } else if (!hasPrevious && hasNext) {
-                                  borderRadius = 'rounded-l rounded-r-none';
-                                }
+                                  // Display text formatting - add dashes for middle days
+                                  let displayText = employeeName;
+                                  if (hasPrevious && hasNext) {
+                                    displayText = `- ${employeeName} -`;
+                                  }
 
-                                // Display text formatting - add dashes for middle days
-                                let displayText = employeeName;
-                                if (hasPrevious && hasNext) {
-                                  displayText = `- ${employeeName} -`;
-                                }
+                                  // Z-index based on sorted position to ensure proper layering
+                                  // Events that appear first in sorted order get lower z-index (appear below)
+                                  const zIndex = hasPrevious || hasNext ? 10 + eventIndex : 1 + eventIndex;
 
-                                // Z-index based on sorted position to ensure proper layering
-                                // Events that appear first in sorted order get lower z-index (appear below)
-                                const zIndex = hasPrevious || hasNext ? 10 + eventIndex : 1 + eventIndex;
-
-                                return (
-                                  <div
-                                    key={event.id}
-                                    className={`
+                                  return (
+                                    <div
+                                      key={event.id}
+                                      className={`
                                     text-xs py-0.5 ${borderRadius} border text-center font-normal
                                     ${LEAVE_TYPE_COLORS_SOLID[event.leaveType as keyof typeof LEAVE_TYPE_COLORS_SOLID] || LEAVE_TYPE_COLORS_SOLID.other}
                                     ${hasPrevious ? 'border-l-0' : 'px-0.5 sm:px-1'}
@@ -609,130 +642,129 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                     ${hasNext ? '-mr-1 sm:-mr-2 pr-1 sm:pr-2' : ''}
                                     relative overflow-visible
                                   `}
-                                    style={{ zIndex }}
-                                    title={`${employeeName} - ${LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}`}
-                                  >
-                                    <span className="sm:inline truncate block">
-                                      {displayText.length > 12 ? displayText.substring(0, 12) + '...' : displayText}
-                                    </span>
-                                    <span className="sm:hidden truncate block">
-                                      {hasPrevious && hasNext
-                                        ? `- ${(employeeName.split(' ')[0] || employeeName).substring(0, 4)} -`
-                                        : (employeeName.split(' ')[0] || employeeName).substring(0, 6)
-                                      }
-                                    </span>
+                                      style={{ zIndex }}
+                                      title={`${employeeName} - ${LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}`}
+                                    >
+                                      <span className="sm:inline truncate block">
+                                        {displayText.length > 12 ? displayText.substring(0, 12) + '...' : displayText}
+                                      </span>
+                                      <span className="sm:hidden truncate block">
+                                        {hasPrevious && hasNext
+                                          ? `- ${(employeeName.split(' ')[0] || employeeName).substring(0, 4)} -`
+                                          : (employeeName.split(' ')[0] || employeeName).substring(0, 6)
+                                        }
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                {dayEvents.length > maxVisibleEvents && (
+                                  <div className="text-xs text-gray-600 text-center font-normal">
+                                    +{dayEvents.length - maxVisibleEvents}
                                   </div>
-                                );
-                              })}
-                              {dayEvents.length > maxVisibleEvents && (
-                                <div className="text-xs text-gray-600 text-center font-normal">
-                                  +{dayEvents.length - maxVisibleEvents}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Show holidays after events (lower priority) */}
-                          {companyHoliday && (
-                            <div className={`text-xs bg-red-200 dark:bg-red-600 text-black dark:text-red-100 px-1 py-0.5 rounded mb-0.5 font-normal leading-tight cursor-pointer ${isOtherMonth ? 'opacity-40' : ''}`}>
-                              <div className="break-words overflow-hidden leading-tight" style={{
-                                display: '-webkit-box',
-                                WebkitLineClamp: 3,
-                                WebkitBoxOrient: 'vertical'
-                              }}>
-                                {companyHoliday.name}
+                                )}
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                        </div>
-                      );
-
-                      const dayElement = (thaiHoliday || companyHoliday) ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            {dayContent}
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            <div className="space-y-1">
-                              {thaiHoliday && (
-                                <div className="text-sm">
-                                  {thaiHoliday.name}
-                                </div>
-                              )}
-                              {companyHoliday && (
-                                <div className="text-sm">
+                            {/* Show holidays after events (lower priority) */}
+                            {companyHoliday && (
+                              <div className={`text-xs bg-red-200 dark:bg-red-600 text-black dark:text-red-100 px-1 py-0.5 rounded mb-0.5 font-normal leading-tight cursor-pointer ${isOtherMonth ? 'opacity-40' : ''}`}>
+                                <div className="break-words overflow-hidden leading-tight" style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: 'vertical'
+                                }}>
                                   {companyHoliday.name}
                                 </div>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : dayContent;
+                              </div>
+                            )}
 
-                      // Check if this date should show the popover for multi-day selection
-                      const shouldShowPopover = popoverOpen && selectedPopoverDate && (
-                        moment(selectedPopoverDate).isSame(moment(date), 'day') ||
-                        (selectedDateRange.length > 1 && isDateInSelectedRange(date) && moment(selectedDateRange[0]).isSame(moment(date), 'day')) ||
-                        (hoverDateRange.length > 1 && selectedDateRange.length === 0 && isDateInHoverRange(date) && moment(hoverDateRange[0]).isSame(moment(date), 'day'))
-                      );
+                          </div>
+                        );
 
-                      // For multi-day selection, show popover even if the date has events
-                      const isMultiDaySelection = (selectedDateRange.length > 1) || (hoverDateRange.length > 1);
+                        const dayElement = (thaiHoliday || companyHoliday) ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {dayContent}
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <div className="space-y-1">
+                                {thaiHoliday && (
+                                  <div className="text-sm">
+                                    {thaiHoliday.name}
+                                  </div>
+                                )}
+                                {companyHoliday && (
+                                  <div className="text-sm">
+                                    {companyHoliday.name}
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : dayContent;
 
-                      const isEmptyDate = !hasEvents && !companyHoliday && !thaiHoliday;
-                      const isThisDateSelected = selectedPopoverDate && moment(selectedPopoverDate).isSame(moment(date), 'day');
-                      const isPopoverOpenForThisDate = shouldShowPopover ||
-                        (isEmptyDate && popoverOpen && isThisDateSelected);
+                        // Check if this date should show the popover for multi-day selection
+                        const shouldShowPopover = popoverOpen && selectedPopoverDate && (
+                          moment(selectedPopoverDate).isSame(moment(date), 'day') ||
+                          (selectedDateRange.length > 1 && isDateInSelectedRange(date) && moment(selectedDateRange[0]).isSame(moment(date), 'day')) ||
+                          (hoverDateRange.length > 1 && selectedDateRange.length === 0 && isDateInHoverRange(date) && moment(hoverDateRange[0]).isSame(moment(date), 'day'))
+                        );
 
-                      // Only render popover for the specific date that should show it
-                      const shouldUsePopover = isPopoverOpenForThisDate;
+                        // For multi-day selection, show popover even if the date has events
+                        const isMultiDaySelection = (selectedDateRange.length > 1) || (hoverDateRange.length > 1);
+
+                        const isEmptyDate = !hasEvents && !companyHoliday && !thaiHoliday;
+                        const isThisDateSelected = selectedPopoverDate && moment(selectedPopoverDate).isSame(moment(date), 'day');
+                        const isPopoverOpenForThisDate = shouldShowPopover ||
+                          (isEmptyDate && popoverOpen && isThisDateSelected);
+
+                        // Only render popover for the specific date that should show it
+                        const shouldUsePopover = isPopoverOpenForThisDate;
 
 
-                      return shouldUsePopover ? (
-                        <CreateEventPopover
-                          key={`${weekIndex}-${index}`}
-                          isOpen={isPopoverOpenForThisDate}
-                          showHolidayDialog={showHolidayDialog}
-                          onHolidayDialogChange={(value, date) => {
-                            setShowHolidayDialog(value);
-                            if (value && date) {
-                              setHolidayDate(date);
-                            }
-                          }}
-                          onOpenChange={(open) => {
-                            // Prevent immediate close only if just opened
-                            if (!open && popoverJustOpened) {
-                              return;
-                            }
-                            setPopoverOpen(open);
-                            if (!open) {
-                              setSelectedPopoverDate(null);
-                              setPopoverJustOpened(false);
-                              // Don't reset holiday dialog immediately when popover closes
-                              // setShowHolidayDialog(false); 
-                              if (isMultiDaySelection) {
-                                clearSelection();
+                        return shouldUsePopover ? (
+                          <CreateEventPopover
+                            key={`${weekIndex}-${index}`}
+                            isOpen={isPopoverOpenForThisDate}
+                            showHolidayDialog={showHolidayDialog}
+                            onHolidayDialogChange={(value, date) => {
+                              setShowHolidayDialog(value);
+                              if (value && date) {
+                                setHolidayDate(date);
                               }
-                            }
-                          }}
-                          onCreateEvent={handleCreateEvent}
-                          onHolidayAdded={handleHolidayAdded}
-                          selectedDate={selectedPopoverDate}
-                          triggerElement={dayElement}
-                          isRangeSelection={isMultiDaySelection}
-                        />
-                      ) : (
-                        dayElement
-                      );
-                    })}
-                  </div>
-                ))}
+                            }}
+                            onOpenChange={(open) => {
+                              // Prevent immediate close only if just opened
+                              if (!open && popoverJustOpened) {
+                                return;
+                              }
+                              setPopoverOpen(open);
+                              if (!open) {
+                                setSelectedPopoverDate(null);
+                                setPopoverJustOpened(false);
+                                if (isMultiDaySelection) {
+                                  clearSelection();
+                                }
+                              }
+                            }}
+                            onCreateEvent={handleCreateEvent}
+                            onHolidayAdded={handleHolidayAdded}
+                            selectedDate={selectedPopoverDate}
+                            triggerElement={dayElement}
+                            isRangeSelection={isMultiDaySelection}
+                          />
+                        ) : (
+                          dayElement
+                        );
+                      })}
+                    </div>
+                  )
+                })}
               </div>
             </>
           ) : (
             /* Agenda View for Week and Day */
-            <div className={`flex ${viewMode === 'day' ? 'flex-col md:flex-row gap-4 lg:gap-6' : 'flex-col gap-3 sm:gap-4'} p-1 sm:p-2 bg-slate-50/50 dark:bg-gray-800/30 rounded-xl min-h-[30vh]`}>
+            <div className={`flex ${viewMode === 'day' ? 'flex-col md:flex-row gap-4 lg:gap-6' : 'flex-col gap-2 sm:gap-3'} p-1 sm:p-2 bg-slate-50/50 dark:bg-gray-800/30 rounded-xl ${viewMode === 'day' ? 'min-h-[30vh]' : ''}`}>
               {days.map((date, dayIndex) => {
                 const dayEvents = getEventsForDate(date);
                 const thaiHoliday = isHoliday(date);
@@ -778,9 +810,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 return (
                   <div
                     key={dateKey}
-                    className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-visible transition-colors"
+                    className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-visible transition-colors ${viewMode === 'day' ? 'flex-1 p-3 sm:p-5' : 'p-2 sm:p-3'}`}
                   >
-                    <div className="p-3 sm:p-5 h-full">
+                    <div className="h-full">
 
                       {isPopoverOpenForThisDate ? (
                         <CreateEventPopover
@@ -796,11 +828,11 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         />
                       ) : agendaDayHeader}
 
-                      <div className="flex flex-col gap-2 mt-3">
+                      <div className={`flex flex-col gap-2 ${viewMode === 'day' ? 'mt-3' : 'mt-2'}`}>
                         {/* Company Holiday */}
                         {compHoliday && (
                           <div
-                            className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-red-50/80 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 text-red-800 dark:text-red-300 cursor-pointer hover:bg-red-100/80 dark:hover:bg-red-900/40 transition-colors shadow-sm"
+                            className={`flex items-start gap-3 rounded-xl bg-red-50/80 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 text-red-800 dark:text-red-300 cursor-pointer hover:bg-red-100/80 dark:hover:bg-red-900/40 transition-colors shadow-sm ${viewMode === 'day' ? 'p-3 sm:p-4' : 'p-2'}`}
                             onClick={() => onDateClick(date)}
                           >
                             <div className="mt-0.5 text-red-500 dark:text-red-400 bg-white dark:bg-red-950 p-1.5 rounded-full shadow-sm">
@@ -826,7 +858,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             <div
                               key={event.id}
                               onClick={() => onDateClick(date)}
-                              className="cursor-pointer group flex items-stretch gap-3 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all bg-white dark:bg-gray-800 relative overflow-hidden"
+                              className={`cursor-pointer group flex items-stretch gap-3 rounded-xl border border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all bg-white dark:bg-gray-800 relative overflow-hidden ${viewMode === 'day' ? 'p-3 sm:p-4' : 'p-2'}`}
                             >
                               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${colorClass}`} />
                               <div className="pl-1.5 flex-1 flex flex-col justify-center">
@@ -845,7 +877,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         })}
 
                         {dayEvents.length === 0 && !compHoliday && (
-                          <div className="p-3 sm:p-4 flex items-center justify-center gap-2 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 min-h-[60px]">
+                          <div className={`flex items-center justify-center gap-2 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 ${viewMode === 'day' ? 'p-3 sm:p-4 min-h-[60px]' : 'py-2 px-3'}`}>
                             <p className="text-sm text-gray-400 dark:text-gray-500">ไม่มีรายการใดๆ</p>
                           </div>
                         )}
