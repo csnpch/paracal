@@ -130,11 +130,23 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
 
+/* Calendar grid height constraint - desktop only */
+@media (min-width: 768px) {
+  .calendar-weeks-container {
+    height: calc(80vh - 120px);
+  }
+
+  .calendar-day-cell {
+    min-height: 60px;
+  }
+}
+
 /* Toast progress bar animation */
 @keyframes toast-progress {
   from {
     width: 100%;
   }
+
   to {
     width: 0%;
   }

@@ -466,8 +466,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   size="sm"
                   onClick={() => setShowWeekends(!showWeekends)}
                   className={`h-6 sm:h-7 px-2 text-[11px] sm:text-sm font-medium transition-colors duration-200 ${!showWeekends
-                      ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600/80'
-                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
+                    ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600/80'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
                     }`}
                   title={showWeekends ? "ซ่อนวันหยุดเสาร์-อาทิตย์" : "แสดงวันหยุดเสาร์-อาทิตย์"}
                 >
@@ -523,7 +523,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               </div>
 
               {/* Calendar weeks */}
-              <div className="space-y-0.5 sm:space-y-1">
+              <div className="calendar-weeks-container space-y-0.5 sm:space-y-1 md:flex md:flex-col md:space-y-0 md:gap-1">
                 {weeks.map((week, weekIndex) => {
                   const visibleDaysInWeek = showWeekends ? week : week.filter(date => {
                     const day = moment(date).day();
@@ -531,7 +531,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   });
 
                   return (
-                    <div key={weekIndex} className={`grid ${gridColsClass} gap-0.5 sm:gap-1`}>
+                    <div key={weekIndex} className={`grid ${gridColsClass} gap-0.5 sm:gap-1 md:flex-1`}>
                       {visibleDaysInWeek.map((date, index) => {
                         const dayEvents = getEventsForDate(date);
                         const isOtherMonth = !isCurrentMonth(date);
@@ -593,7 +593,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         const dayContent = (
                           <div
                             key={`${weekIndex}-${index}`}
-                            className={`aspect-square flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isDateInSelectedRange(date) || isDateInHoverRange(date) ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!(isDateInSelectedRange(date) || isDateInHoverRange(date)) ? borderColor : ''}`}
+                            className={`aspect-square md:aspect-auto md:h-full calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isDateInSelectedRange(date) || isDateInHoverRange(date) ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!(isDateInSelectedRange(date) || isDateInHoverRange(date)) ? borderColor : ''}`}
                             onClick={() => handleDateClick(date)}
                             onMouseDown={() => handleMouseDown(date)}
                             onMouseEnter={() => handleMouseEnter(date)}
