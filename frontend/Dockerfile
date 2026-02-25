@@ -1,26 +1,40 @@
-# Frontend Dockerfile (uses pre-built dist from local machine)
-FROM nginx:alpine
+# ============================================================
+# Frontend Dockerfile — Multi-stage for fast builds on Railway
+# ============================================================
 
-# Copy pre-built files from local dist
-COPY dist /usr/share/nginx/html
+# --- Stage 1: Install dependencies + Build ---
+FROM node:20-alpine AS build
 
-# Create nginx config for SPA + API proxy
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    root /usr/share/nginx/html; \
-    index index.html index.htm; \
-    location / { \
-    try_files $uri $uri/ /index.html; \
-    } \
-    location /api/ { \
-    proxy_pass http://backend:3001/; \
-    proxy_set_header Host $host; \
-    proxy_set_header X-Real-IP $remote_addr; \
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-    proxy_set_header X-Forwarded-Proto $scheme; \
-    } \
-    }' > /etc/nginx/conf.d/default.conf
+WORKDIR /app/frontend
+
+# Copy only package.json (NOT package-lock.json)
+# This forces npm to resolve platform-correct optional deps (e.g. @rollup/rollup-linux-arm64-musl)
+# Lockfile from macOS lacks linux-musl native bindings — see https://github.com/npm/cli/issues/4828
+COPY frontend/package.json ./
+
+RUN npm install
+
+# Copy shared modules at the correct relative path (frontend imports ../../../shared/*)
+COPY shared /app/shared
+
+# Copy frontend source code
+COPY frontend/ ./
+
+# Build with the API URL passed as build arg
+ARG VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+RUN npm run build
+
+
+# --- Stage 2: Serve with Nginx (tiny image ~40MB) ---
+FROM nginx:alpine AS production
+
+# Copy built static files
+COPY --from=build /app/frontend/dist /usr/share/nginx/html
+
+# Copy nginx config
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

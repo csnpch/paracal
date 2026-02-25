@@ -1,5 +1,5 @@
 import type { Holiday } from '../types';
-import { getDatabase } from '../database/connection';
+import { getPrisma } from '../database/connection';
 import config from '../config';
 import axios from 'axios';
 import moment from 'moment';
@@ -27,7 +27,7 @@ interface CalendarificApiResponse {
 // ─── Service ─────────────────────────────────────────────────
 
 export class HolidayService {
-  private db = getDatabase();
+  private get prisma() { return getPrisma(); }
 
   async fetchThaiHolidays(year: number): Promise<Holiday[]> {
     try {
@@ -64,13 +64,13 @@ export class HolidayService {
       }));
 
       Logger.info(`Fetched ${holidays.length} holidays from Calendarific API`);
-      this.saveHolidaysToDatabase(holidays, year, 'api');
+      await this.saveHolidaysToDatabase(holidays, year, 'api');
       return holidays;
     } catch (error) {
       Logger.error('Error fetching from Calendarific API:', error);
 
       // Try database cache
-      const cached = this.getHolidaysFromDatabase(year);
+      const cached = await this.getHolidaysFromDatabase(year);
       if (cached.length > 0) {
         Logger.info(`Using ${cached.length} cached holidays from database for ${year}`);
         return cached;
@@ -79,16 +79,20 @@ export class HolidayService {
       // Final fallback
       Logger.warn('No cached data available, using default holidays');
       const defaults = this.getDefaultThaiHolidays(year);
-      this.saveHolidaysToDatabase(defaults, year, 'fallback');
+      await this.saveHolidaysToDatabase(defaults, year, 'fallback');
       return defaults;
     }
   }
 
   // ── Database Cache ───────────────────────────────────────────
 
-  private getHolidaysFromDatabase(year: number): Holiday[] {
+  private async getHolidaysFromDatabase(year: number): Promise<Holiday[]> {
     try {
-      const rows = this.db.prepare('SELECT date, name, type FROM thai_holidays WHERE year = ? ORDER BY date ASC').all(year) as Array<{ date: string; name: string; type: string }>;
+      const rows = await this.prisma.thaiHoliday.findMany({
+        where: { year },
+        orderBy: { date: 'asc' },
+        select: { date: true, name: true, type: true },
+      });
       return rows.map((r) => ({ date: r.date, name: r.name, type: r.type as Holiday['type'] }));
     } catch (error) {
       Logger.error('Error getting holidays from database:', error);
@@ -96,15 +100,18 @@ export class HolidayService {
     }
   }
 
-  private saveHolidaysToDatabase(holidays: Holiday[], year: number, source: string): void {
+  private async saveHolidaysToDatabase(holidays: Holiday[], year: number, source: string): Promise<void> {
     try {
-      this.db.prepare('DELETE FROM thai_holidays WHERE year = ?').run(year);
-
-      const stmt = this.db.prepare('INSERT INTO thai_holidays (name, date, type, year, source) VALUES (?, ?, ?, ?, ?)');
-      for (const h of holidays) {
-        stmt.run(h.name, h.date, h.type, year, source);
-      }
-
+      await this.prisma.thaiHoliday.deleteMany({ where: { year } });
+      await this.prisma.thaiHoliday.createMany({
+        data: holidays.map((h) => ({
+          name: h.name,
+          date: h.date,
+          type: h.type,
+          year,
+          source,
+        })),
+      });
       Logger.info(`Saved ${holidays.length} holidays to database for year ${year} (source: ${source})`);
     } catch (error) {
       Logger.error('Error saving holidays to database:', error);

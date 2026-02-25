@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getApiDatabase, type Employee, type Event } from '../services/apiDatabase';
 import moment from 'moment';
 
@@ -115,7 +115,7 @@ export const useCalendarData = () => {
 
   // ── Utilities ──────────────────────────────────────────────
 
-  const getEventsForDate = (date: Date): Event[] => {
+  const getEventsForDate = useCallback((date: Date): Event[] => {
     const dateString = moment(date).format('YYYY-MM-DD');
     return events.filter((event) => {
       if (event.date === dateString) return true;
@@ -124,7 +124,7 @@ export const useCalendarData = () => {
       }
       return false;
     });
-  };
+  }, [events]);
 
   const searchEmployees = async (query: string) => db.searchEmployees(query);
   const searchEvents = async (query: string) => db.searchEvents(query);

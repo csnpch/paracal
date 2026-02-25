@@ -19,7 +19,8 @@ import {
   LogOut,
   Calendar,
   FileText,
-  KeyRound
+  KeyRound,
+  ClipboardList
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -141,6 +142,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                       >
                         <Settings className="w-4 h-4 mr-2" />
                         ตั้งค่า Cronjob
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => navigate('/admin/logs')}
+                        className="px-4 py-3"
+                      >
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        Logs
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem

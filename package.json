@@ -10,11 +10,14 @@
     "build:backend": "cd backend && bun install && bun run build",
     "build:frontend": "cd frontend && npm install && VITE_API_BASE_URL=/api npm run build",
     "gcp:build-code": "npm run build:backend && npm run build:frontend",
-    "gcp:build-image": "docker build --platform linux/amd64 -f backend/Dockerfile -t paracal-backend . && docker build --platform linux/amd64 -t paracal-frontend ./frontend",
+    "gcp:build-image": "docker build --platform linux/amd64 -f backend/Dockerfile -t paracal-backend . && docker build --platform linux/amd64 -f frontend/Dockerfile -t paracal-frontend .",
     "gcp:tag": "docker tag paracal-backend chtisanuphongcha/paracal-backend:latest && docker tag paracal-frontend chtisanuphongcha/paracal-frontend:latest",
     "gcp:push": "docker push chtisanuphongcha/paracal-backend:latest && docker push chtisanuphongcha/paracal-frontend:latest",
-    "gcp:release": "npm run gcp:build-code && npm run gcp:build-image && npm run gcp:tag && npm run gcp:push",
-    "gcp:serve": "docker compose -f docker-compose.gcp.yml down && docker compose -f docker-compose.gcp.yml pull && docker compose -f docker-compose.gcp.yml up -d"
+    "gcp:release": "npm run gcp:build-image && npm run gcp:tag && npm run gcp:push",
+    "gcp:serve": "docker compose -f docker-compose.gcp.yml down && docker compose -f docker-compose.gcp.yml pull && docker compose -f docker-compose.gcp.yml up -d",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

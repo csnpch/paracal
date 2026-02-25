@@ -51,11 +51,11 @@ export const LEAVE_TYPE_COLORS_SOLID: Record<LeaveType, string> = {
     'bg-stone-50 dark:bg-stone-600 text-stone-700 dark:text-stone-100 border-stone-200 dark:border-stone-400',
   sick: 'bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-600',
   unpaid:
-    'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-500',
+    'bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-100 border-slate-200 dark:border-slate-400',
   compensatory:
     'bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-600',
   other:
-    'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-500',
+    'bg-gray-50 dark:bg-gray-600 text-gray-700 dark:text-gray-100 border-gray-200 dark:border-gray-400',
 };
 
 // ─── Utility Functions ───────────────────────────────────────

@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs (we build inside Docker)
+dist/
+build/
+*/dist/
+*/build/
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database & logs (runtime only)
+*.db
+*.sqlite
+*.sqlite3
+backend/logs/
+backend/data/
+
+# Test files
+tests/
+**/tests/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+jest.config.js
+vitest.config.ts
+
+# Documentation
+*.md
+LICENSE
+
+# Docker files (avoid recursive)
+docker-compose*.yml
+build.sh
+
+# Migration scripts (not needed in image)
+backend/migrate-*.js
+backend/test-migration.js

@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Employee {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  events    Event[]
+
+  @@map("employees")
+}
+
+model Event {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  employeeName String   @map("employee_name")
+  leaveType    String   @map("leave_type")
+  date         String?
+  startDate    String?  @map("start_date")
+  endDate      String?  @map("end_date")
+  description  String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([leaveType])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([startDate, endDate])
+  @@map("events")
+}
+
+model CronjobConfig {
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  enabled          Boolean  @default(true)
+  scheduleTime     String   @map("schedule_time")
+  webhookUrl       String   @map("webhook_url")
+  notificationDays Int      @default(1) @map("notification_days")
+  notificationType String   @default("daily") @map("notification_type")
+  weeklyDays       String?  @map("weekly_days")
+  weeklyScope      String?  @default("current") @map("weekly_scope")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([enabled])
+  @@map("cronjob_config")
+}
+
+model CompanyHoliday {
+  id          Int      @id @default(autoincrement())
+  name        String
+  date        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@map("company_holidays")
+}
+
+model ThaiHoliday {
+  id        Int      @id @default(autoincrement())
+  name      String
+  date      String
+  type      String   @default("public")
+  year      Int
+  source    String?  @default("api")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([year])
+  @@map("thai_holidays")
+}
+
+model AdminConfig {
+  id  Int    @id @default(autoincrement())
+  pin String
+
+  @@map("admin_config")
+}
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  action     String // CREATE | UPDATE | DELETE | CLEAR
+  entity     String // event | employee | company_holiday | cronjob | admin
+  entityId   Int?     @map("entity_id")
+  entityName String?  @map("entity_name")
+  detail     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([entity])
+  @@index([action])
+  @@map("activity_logs")
+}

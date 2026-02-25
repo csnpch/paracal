@@ -6,8 +6,9 @@ This guide explains how to deploy and update the Paracal application.
 
 1. [Local Deployment (Docker Compose)](#-local-deployment-docker-compose)
 2. [GCP VM Deployment (GCP Free Tier)](#-gcp-vm-deployment-gcp-free-tier)
-3. [Update Process (Local Build & Push)](#-update-process-local-build--push)
-4. [Monitoring & Logs](#-monitoring--logs)
+3. [Railway Deployment (GitHub Repo)](#-railway-deployment-github-repo)
+4. [Update Process (Local Build & Push)](#-update-process-local-build--push)
+5. [Monitoring & Logs](#-monitoring--logs)
 
 ---
 
@@ -62,6 +63,64 @@ docker compose -f docker-compose.gcp.yml up -d
 - **Frontend:** `http://<EXTERNAL_IP>` (port 80, no port number needed)
 - **Backend API:** `http://<EXTERNAL_IP>:3000`
 - **API Docs:** `http://<EXTERNAL_IP>:3000/swagger`
+
+---
+
+## 🚂 Railway Deployment (GitHub Repo)
+
+Deploy directly from your GitHub repository. Railway automatically rebuilds on every `git push`.
+
+### Architecture on Railway
+Create **2 separate services** in the same Railway project, both connected to the same GitHub repo:
+
+| Service | Dockerfile | Root Directory | Port |
+| :--- | :--- | :--- | :--- |
+| Backend | `backend/Dockerfile` (context: `.`) | `/` (root) | 3001 |
+| Frontend | `frontend/Dockerfile` (context: `.`) | `/` (root) | 80 |
+
+### Step-by-step Setup
+
+#### 1. Create Backend Service
+1. In Railway, click **"New Service"** → **"GitHub Repo"** → select this repo
+2. Go to **Settings**:
+   - **Builder**: `Dockerfile`
+   - **Dockerfile Path**: `backend/Dockerfile`
+   - Set **Port** to `3001`
+3. Go to **Variables** and add:
+   ```
+   NODE_ENV=production
+   DATABASE_URL=<your_postgres_connection_string>
+   ADMIN_PASSWORD=<your_admin_password>
+   CALENDARIFIC_API_KEY=<your_api_key>
+   APP_URL=<your_frontend_public_url>
+   ```
+4. Deploy and note the **public domain** (e.g. `paracal-backend-production.up.railway.app`)
+
+#### 2. Create Frontend Service
+1. In Railway, click **"New Service"** → **"GitHub Repo"** → select the same repo
+2. Go to **Settings**:
+   - **Builder**: `Dockerfile`
+   - **Dockerfile Path**: `frontend/Dockerfile`
+   - Set **Port** to `80`
+3. Go to **Variables** and add:
+   ```
+   VITE_API_BASE_URL=https://<backend-public-domain>
+   ```
+   > ⚠️ `VITE_API_BASE_URL` must be the **full public URL** of the backend service (from step 1.4)
+   > Since Vite bakes this value at **build time**, Railway needs it as a build-time variable.
+4. Deploy and set up a **custom domain** if needed
+
+#### 3. Database (PostgreSQL)
+Railway has a **built-in PostgreSQL** addon:
+1. Click **"New Service"** → **"Database"** → **"PostgreSQL"**
+2. Copy the `DATABASE_URL` from the database service and paste it into the backend's Variables
+
+### Build Speed Optimization
+The Dockerfiles use these techniques to minimize build time on Railway:
+- **Layer caching**: dependency install is separated from code copy, so `npm ci` / `bun install` is cached when only source code changes
+- **`.dockerignore`**: excludes `node_modules`, `dist`, `.git`, tests — reduces upload context
+- **Backend skips compilation**: Bun runs TypeScript directly, no `bun build` step needed
+- **Multi-stage builds**: final images are minimal (nginx:alpine ~40MB, bun:alpine ~150MB)
 
 ---
 

@@ -32,6 +32,7 @@ build/
 Thumbs.db
 
 # Package manager files
-package-lock.json
+# Note: lock files are tracked for reproducible Docker builds on Railway
+# package-lock.json  — needed for npm ci in frontend Dockerfile
+# bun.lock           — needed for bun install --frozen-lockfile in backend Dockerfile
 yarn.lock
-bun.lockb

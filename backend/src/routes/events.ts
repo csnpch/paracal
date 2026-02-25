@@ -1,8 +1,8 @@
 import { Elysia, t } from 'elysia';
 import { EventService } from '../services/eventService';
 import { EventMergeService } from '../services/eventMergeService';
-import config from '../config';
-import { getDatabase } from '../database/connection';
+import { getPrisma } from '../database/connection';
+import { logService } from '../services/logService';
 import bcrypt from 'bcryptjs';
 import Logger from '../utils/logger';
 
@@ -24,30 +24,25 @@ const idParam = t.Object({ id: t.String() });
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function validateAdminPassword(pin: string | undefined): void {
-  if (!pin) {
-    throw new Error('Invalid PIN');
-  }
-  const db = getDatabase();
-  const adminConfig = db.prepare("SELECT pin FROM admin_config ORDER BY id DESC LIMIT 1").get() as { pin: string } | undefined;
-  
-  if (!adminConfig) {
-    throw new Error('Admin config not found');
-  }
+async function validateAdminPassword(pin: string | undefined): Promise<void> {
+  if (!pin) throw new Error('Invalid PIN');
+
+  const prisma = getPrisma();
+  const adminConfig = await prisma.adminConfig.findFirst({ orderBy: { id: 'desc' } });
+
+  if (!adminConfig) throw new Error('Admin config not found');
 
   const isValid = bcrypt.compareSync(pin, adminConfig.pin);
-  if (!isValid) {
-    throw new Error('Invalid PIN');
-  }
+  if (!isValid) throw new Error('Invalid PIN');
 }
 
 // ── Routes ───────────────────────────────────────────────────
 
 export const eventsRoutes = new Elysia({ prefix: '/events' })
-  .get('/', () => {
+  .get('/', async () => {
     try {
       Logger.debug('Fetching all events');
-      const events = eventService.getAllEvents();
+      const events = await eventService.getAllEvents();
       Logger.debug(`Retrieved ${events.length} events`);
       return events;
     } catch (error) {
@@ -56,10 +51,10 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }
   })
 
-  .get('/:id', ({ params: { id } }) => {
+  .get('/:id', async ({ params: { id } }) => {
     try {
       Logger.debug(`Fetching event with ID: ${id}`);
-      const event = eventService.getEventById(Number(id));
+      const event = await eventService.getEventById(Number(id));
       if (!event) {
         Logger.warn(`Event not found with ID: ${id}`);
         throw new Error('Event not found');
@@ -71,11 +66,18 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }
   }, { params: idParam })
 
-  .post('/', ({ body }) => {
+  .post('/', async ({ body }) => {
     try {
       Logger.debug(`Creating new event: ${JSON.stringify(body)}`);
-      const newEvent = eventService.createEvent(body);
+      const newEvent = await eventService.createEvent(body);
       Logger.info(`Created event: ${newEvent.employeeName} - ${newEvent.leaveType} from ${newEvent.startDate} to ${newEvent.endDate}`);
+      await logService.writeLog({
+        action: 'CREATE',
+        entity: 'event',
+        entityId: newEvent.id,
+        entityName: newEvent.employeeName,
+        detail: `${newEvent.leaveType} | ${newEvent.startDate} → ${newEvent.endDate}`,
+      });
       return newEvent;
     } catch (error) {
       Logger.error('Error creating event:', error);
@@ -91,15 +93,22 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }),
   })
 
-  .put('/:id', ({ params: { id }, body }) => {
+  .put('/:id', async ({ params: { id }, body }) => {
     try {
       Logger.debug(`Updating event ${id}: ${JSON.stringify(body)}`);
-      const event = eventService.updateEvent(Number(id), body);
+      const event = await eventService.updateEvent(Number(id), body);
       if (!event) {
         Logger.warn(`Event not found for update with ID: ${id}`);
         throw new Error('Event not found');
       }
       Logger.info(`Updated event ${id}: ${event.employeeName} - ${event.leaveType}`);
+      await logService.writeLog({
+        action: 'UPDATE',
+        entity: 'event',
+        entityId: event.id,
+        entityName: event.employeeName,
+        detail: `${event.leaveType} | ${event.startDate} → ${event.endDate}`,
+      });
       return event;
     } catch (error) {
       Logger.error(`Error updating event ${id}:`, error);
@@ -116,15 +125,21 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }),
   })
 
-  .delete('/:id', ({ params: { id } }) => {
+  .delete('/:id', async ({ params: { id } }) => {
     try {
       Logger.debug(`Deleting event with ID: ${id}`);
-      const success = eventService.deleteEvent(Number(id));
+      const success = await eventService.deleteEvent(Number(id));
       if (!success) {
         Logger.warn(`Event not found for deletion with ID: ${id}`);
         throw new Error('Event not found');
       }
       Logger.info(`Deleted event with ID: ${id}`);
+      await logService.writeLog({
+        action: 'DELETE',
+        entity: 'event',
+        entityId: Number(id),
+        detail: `Deleted event ID ${id}`,
+      });
       return { success: true };
     } catch (error) {
       Logger.error(`Error deleting event ${id}:`, error);
@@ -132,24 +147,24 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }
   }, { params: idParam })
 
-  .get('/date/:date', ({ params: { date } }) => {
-    return eventService.getEventsByDate(date);
+  .get('/date/:date', async ({ params: { date } }) => {
+    return await eventService.getEventsByDate(date);
   }, { params: t.Object({ date: t.String() }) })
 
-  .get('/date-range/:startDate/:endDate', ({ params: { startDate, endDate } }) => {
-    return eventService.getEventsByDateRange(startDate, endDate);
+  .get('/date-range/:startDate/:endDate', async ({ params: { startDate, endDate } }) => {
+    return await eventService.getEventsByDateRange(startDate, endDate);
   }, { params: t.Object({ startDate: t.String(), endDate: t.String() }) })
 
-  .get('/employee/:employeeId', ({ params: { employeeId } }) => {
-    return eventService.getEventsByEmployeeId(Number(employeeId));
+  .get('/employee/:employeeId', async ({ params: { employeeId } }) => {
+    return await eventService.getEventsByEmployeeId(Number(employeeId));
   }, { params: t.Object({ employeeId: t.String() }) })
 
-  .get('/employee', ({ query }) => {
+  .get('/employee', async ({ query }) => {
     try {
       const { employeeName, startDate, endDate } = query;
       if (!employeeName) throw new Error('Employee name is required');
 
-      const events = eventService.getEventsByEmployeeName(employeeName as string, startDate as string, endDate as string);
+      const events = await eventService.getEventsByEmployeeName(employeeName as string, startDate as string, endDate as string);
       Logger.debug(`Retrieved ${events.length} events for employee: ${employeeName}`);
       return events;
     } catch (error) {
@@ -164,28 +179,28 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }),
   })
 
-  .get('/leave-type/:leaveType', ({ params: { leaveType } }) => {
-    return eventService.getEventsByLeaveType(leaveType);
+  .get('/leave-type/:leaveType', async ({ params: { leaveType } }) => {
+    return await eventService.getEventsByLeaveType(leaveType);
   }, { params: t.Object({ leaveType: t.String() }) })
 
-  .get('/month/:year/:month', ({ params: { year, month } }) => {
-    return eventService.getEventsByMonth(Number(year), Number(month));
+  .get('/month/:year/:month', async ({ params: { year, month } }) => {
+    return await eventService.getEventsByMonth(Number(year), Number(month));
   }, { params: t.Object({ year: t.String(), month: t.String() }) })
 
-  .get('/search/:query', ({ params: { query } }) => {
-    return eventService.searchEvents(query);
+  .get('/search/:query', async ({ params: { query } }) => {
+    return await eventService.searchEvents(query);
   }, { params: t.Object({ query: t.String() }) })
 
-  .get('/upcoming/:days?', ({ params: { days } }) => {
-    return eventService.getUpcomingEvents(days ? Number(days) : 30);
+  .get('/upcoming/:days?', async ({ params: { days } }) => {
+    return await eventService.getUpcomingEvents(days ? Number(days) : 30);
   }, { params: t.Object({ days: t.Optional(t.String()) }) })
 
-  .get('/stats/overview', () => eventService.getEventStats())
+  .get('/stats/overview', async () => await eventService.getEventStats())
 
-  .get('/dashboard/summary', ({ query }) => {
+  .get('/dashboard/summary', async ({ query }) => {
     try {
       const { startDate, endDate, eventType, includeFutureEvents } = query;
-      const summary = eventService.getDashboardSummary(
+      const summary = await eventService.getDashboardSummary(
         startDate as string,
         endDate as string,
         eventType as string,
@@ -207,11 +222,12 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
 
   // ── Bulk Delete (password-protected) ─────────────────────────
 
-  .delete('/bulk/month/:year/:month', ({ params: { year, month }, body }) => {
+  .delete('/bulk/month/:year/:month', async ({ params: { year, month }, body }) => {
     try {
-      validateAdminPassword(body.password);
-      const result = eventService.deleteEventsByMonth(Number(year), Number(month));
+      await validateAdminPassword(body.password);
+      const result = await eventService.deleteEventsByMonth(Number(year), Number(month));
       Logger.info(`Bulk deleted ${result.deletedCount} events for month ${month}/${year}`);
+      await logService.writeLog({ action: 'CLEAR', entity: 'event', detail: `Bulk delete ${result.deletedCount} events for ${month}/${year}` });
       return result;
     } catch (error) {
       Logger.error(`Error bulk deleting events for month ${month}/${year}:`, error);
@@ -222,11 +238,12 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     body: t.Object({ password: t.String() }),
   })
 
-  .delete('/bulk/year/:year', ({ params: { year }, body }) => {
+  .delete('/bulk/year/:year', async ({ params: { year }, body }) => {
     try {
-      validateAdminPassword(body.password);
-      const result = eventService.deleteEventsByYear(Number(year));
+      await validateAdminPassword(body.password);
+      const result = await eventService.deleteEventsByYear(Number(year));
       Logger.info(`Bulk deleted ${result.deletedCount} events for year ${year}`);
+      await logService.writeLog({ action: 'CLEAR', entity: 'event', detail: `Bulk delete ${result.deletedCount} events for year ${year}` });
       return result;
     } catch (error) {
       Logger.error(`Error bulk deleting events for year ${year}:`, error);
@@ -237,11 +254,12 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     body: t.Object({ password: t.String() }),
   })
 
-  .delete('/bulk/all', ({ body }) => {
+  .delete('/bulk/all', async ({ body }) => {
     try {
-      validateAdminPassword(body.password);
-      const result = eventService.deleteAllEvents();
+      await validateAdminPassword(body.password);
+      const result = await eventService.deleteAllEvents();
       Logger.info(`Bulk deleted ${result.deletedCount} events`);
+      await logService.writeLog({ action: 'CLEAR', entity: 'event', detail: `Bulk delete ALL events (${result.deletedCount} entries)` });
       return result;
     } catch (error) {
       Logger.error('Error bulk deleting all events:', error);

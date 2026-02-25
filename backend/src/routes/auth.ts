@@ -1,13 +1,14 @@
 import { Elysia, t } from 'elysia';
-import { getDatabase } from '../database/connection';
+import { getPrisma } from '../database/connection';
+import { logService } from '../services/logService';
 import bcrypt from 'bcryptjs';
 import Logger from '../utils/logger';
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
-  .post('/login', ({ body }) => {
+  .post('/login', async ({ body }) => {
     try {
-      const db = getDatabase();
-      const adminConfig = db.prepare("SELECT pin FROM admin_config ORDER BY id DESC LIMIT 1").get() as { pin: string } | undefined;
+      const prisma = getPrisma();
+      const adminConfig = await prisma.adminConfig.findFirst({ orderBy: { id: 'desc' } });
       
       if (!adminConfig) {
         return { success: false, message: 'Admin config not found' };
@@ -16,6 +17,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const isValid = bcrypt.compareSync(body.pin, adminConfig.pin);
 
       if (isValid) {
+        await logService.writeLog({ action: 'LOGIN', entity: 'admin', detail: 'Admin logged in' });
         return { success: true };
       } else {
         return { success: false, message: 'Invalid PIN' };
@@ -29,10 +31,10 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       pin: t.String()
     })
   })
-  .post('/change-pin', ({ body }) => {
+  .post('/change-pin', async ({ body }) => {
     try {
-      const db = getDatabase();
-      const adminConfig = db.prepare("SELECT pin FROM admin_config ORDER BY id DESC LIMIT 1").get() as { pin: string } | undefined;
+      const prisma = getPrisma();
+      const adminConfig = await prisma.adminConfig.findFirst({ orderBy: { id: 'desc' } });
       
       if (!adminConfig) {
         return { success: false, message: 'Admin config not found' };
@@ -45,9 +47,13 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       }
 
       const newPinHash = bcrypt.hashSync(body.newPin, 10);
-      db.prepare("UPDATE admin_config SET pin = ?").run(newPinHash);
+      await prisma.adminConfig.update({
+        where: { id: adminConfig.id },
+        data: { pin: newPinHash },
+      });
 
       Logger.info('Admin PIN changed successfully');
+      await logService.writeLog({ action: 'CHANGE_PIN', entity: 'admin', detail: 'Admin PIN changed' });
       return { success: true };
     } catch (error) {
       Logger.error('Change PIN error:', error);

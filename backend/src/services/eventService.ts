@@ -1,40 +1,26 @@
-import { getDatabase } from '../database/connection';
+import { getPrisma } from '../database/connection';
 import type { Event, CreateEventRequest, UpdateEventRequest } from '../types';
 import moment from 'moment';
 
-// ── Shared SQL fragment for all event queries ────────────────
-const EVENT_COLUMNS = `
-  e.id,
-  e.employee_id as employeeId,
-  e.employee_name as employeeName,
-  e.leave_type as leaveType,
-  e.date,
-  e.start_date as startDate,
-  e.end_date as endDate,
-  e.description,
-  e.created_at as createdAt,
-  e.updated_at as updatedAt
-`;
-
 export class EventService {
-  private db = getDatabase();
+  private get prisma() { return getPrisma(); }
 
   // ── Helpers ──────────────────────────────────────────────────
 
-  private getNow(): string {
-    return moment().utcOffset('+07:00').format();
+  private getNow(): Date {
+    return moment().utcOffset('+07:00').toDate();
   }
 
   private getToday(): string {
     return moment().utcOffset('+07:00').format('YYYY-MM-DD');
   }
 
-  private lookupEmployee(employeeId: number): { name: string } {
-    const stmt = this.db.prepare('SELECT name FROM employees WHERE id = ?');
-    const employee = stmt.get(employeeId) as { name: string } | undefined;
-    if (!employee) {
-      throw new Error(`Employee with id ${employeeId} not found`);
-    }
+  private async lookupEmployee(employeeId: number): Promise<{ name: string }> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { name: true },
+    });
+    if (!employee) throw new Error(`Employee with id ${employeeId} not found`);
     return employee;
   }
 
@@ -42,189 +28,179 @@ export class EventService {
     return startDate === endDate ? startDate : null;
   }
 
-  // ── CRUD ─────────────────────────────────────────────────────
-
-  createEvent(data: CreateEventRequest): Event {
-    const now = this.getNow();
-    const employee = this.lookupEmployee(data.employeeId);
-
-    const stmt = this.db.prepare(`
-      INSERT INTO events (employee_id, employee_name, leave_type, start_date, end_date, date, description, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const legacyDate = this.computeLegacyDate(data.startDate, data.endDate);
-
-    stmt.run(
-      data.employeeId,
-      employee.name,
-      data.leaveType,
-      data.startDate,
-      data.endDate,
-      legacyDate,
-      data.description || null,
-      now,
-      now,
-    );
-
-    const result = this.db.prepare('SELECT last_insert_rowid() as id').get() as { id: number };
-
+  private mapEvent(row: any): Event {
     return {
-      id: result.id,
-      employeeId: data.employeeId,
-      employeeName: employee.name,
-      leaveType: data.leaveType,
-      date: legacyDate ?? undefined,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      description: data.description,
-      createdAt: now,
-      updatedAt: now,
+      id: row.id,
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      leaveType: row.leaveType as Event['leaveType'],
+      date: row.date ?? undefined,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      description: row.description ?? undefined,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
     };
   }
 
-  getAllEvents(): Event[] {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      ORDER BY e.start_date DESC
-    `);
-    return stmt.all() as Event[];
+  // ── CRUD ─────────────────────────────────────────────────────
+
+  async createEvent(data: CreateEventRequest): Promise<Event> {
+    const now = this.getNow();
+    const employee = await this.lookupEmployee(data.employeeId);
+    const legacyDate = this.computeLegacyDate(data.startDate, data.endDate);
+
+    const event = await this.prisma.event.create({
+      data: {
+        employeeId: data.employeeId,
+        employeeName: employee.name,
+        leaveType: data.leaveType,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        date: legacyDate,
+        description: data.description || null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    return this.mapEvent(event);
   }
 
-  getEventById(id: number): Event | null {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE e.id = ?
-    `);
-    return (stmt.get(id) as Event | undefined) || null;
+  async getAllEvents(): Promise<Event[]> {
+    const events = await this.prisma.event.findMany({ orderBy: { startDate: 'desc' } });
+    return events.map(this.mapEvent);
   }
 
-  getEventsByDate(date: string): Event[] {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE (e.date = ? OR (? >= e.start_date AND ? <= e.end_date))
-      ORDER BY e.employee_name ASC
-    `);
-    return stmt.all(date, date, date) as Event[];
+  async getEventById(id: number): Promise<Event | null> {
+    const event = await this.prisma.event.findUnique({ where: { id } });
+    return event ? this.mapEvent(event) : null;
   }
 
-  getEventsByDateRange(startDate: string, endDate: string): Event[] {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE (e.date >= ? AND e.date <= ?) OR (e.start_date <= ? AND e.end_date >= ?)
-      ORDER BY COALESCE(e.start_date, e.date) ASC, e.employee_name ASC
-    `);
-    return stmt.all(startDate, endDate, endDate, startDate) as Event[];
+  async getEventsByDate(date: string): Promise<Event[]> {
+    const events = await this.prisma.event.findMany({
+      where: {
+        OR: [
+          { date },
+          { AND: [{ startDate: { lte: date } }, { endDate: { gte: date } }] },
+        ],
+      },
+      orderBy: { employeeName: 'asc' },
+    });
+    return events.map(this.mapEvent);
   }
 
-  getEventsByEmployeeId(employeeId: number): Event[] {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE e.employee_id = ?
-      ORDER BY COALESCE(e.start_date, e.date) DESC
-    `);
-    return stmt.all(employeeId) as Event[];
+  async getEventsByDateRange(startDate: string, endDate: string): Promise<Event[]> {
+    const events = await this.prisma.event.findMany({
+      where: {
+        OR: [
+          { AND: [{ date: { gte: startDate } }, { date: { lte: endDate } }] },
+          { AND: [{ startDate: { lte: endDate } }, { endDate: { gte: startDate } }] },
+        ],
+      },
+      orderBy: [{ startDate: 'asc' }, { employeeName: 'asc' }],
+    });
+    return events.map(this.mapEvent);
   }
 
-  getEventsByEmployeeName(employeeName: string, startDate?: string, endDate?: string): Event[] {
-    let query = `
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE e.employee_name = ?
-    `;
-    const params: any[] = [employeeName];
+  async getEventsByEmployeeId(employeeId: number): Promise<Event[]> {
+    const events = await this.prisma.event.findMany({
+      where: { employeeId },
+      orderBy: { startDate: 'desc' },
+    });
+    return events.map(this.mapEvent);
+  }
+
+  async getEventsByEmployeeName(employeeName: string, startDate?: string, endDate?: string): Promise<Event[]> {
+    const where: any = { employeeName };
 
     if (startDate && endDate) {
-      query += ' AND ((e.date >= ? AND e.date <= ?) OR (e.start_date <= ? AND e.end_date >= ?))';
-      params.push(startDate, endDate, endDate, startDate);
+      where.OR = [
+        { AND: [{ date: { gte: startDate } }, { date: { lte: endDate } }] },
+        { AND: [{ startDate: { lte: endDate } }, { endDate: { gte: startDate } }] },
+      ];
     }
 
-    query += ' ORDER BY COALESCE(e.start_date, e.date) DESC';
-
-    const stmt = this.db.prepare(query);
-    return stmt.all(...params) as Event[];
+    const events = await this.prisma.event.findMany({
+      where,
+      orderBy: { startDate: 'desc' },
+    });
+    return events.map(this.mapEvent);
   }
 
-  getEventsByLeaveType(leaveType: string): Event[] {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE e.leave_type = ?
-      ORDER BY COALESCE(e.start_date, e.date) DESC
-    `);
-    return stmt.all(leaveType) as Event[];
+  async getEventsByLeaveType(leaveType: string): Promise<Event[]> {
+    const events = await this.prisma.event.findMany({
+      where: { leaveType },
+      orderBy: { startDate: 'desc' },
+    });
+    return events.map(this.mapEvent);
   }
 
-  getEventsByMonth(year: number, month: number): Event[] {
+  async getEventsByMonth(year: number, month: number): Promise<Event[]> {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = moment().year(year).month(month - 1).endOf('month').format('YYYY-MM-DD');
     return this.getEventsByDateRange(startDate, endDate);
   }
 
-  updateEvent(id: number, data: UpdateEventRequest): Event | null {
-    const existing = this.getEventById(id);
+  async updateEvent(id: number, data: UpdateEventRequest): Promise<Event | null> {
+    const existing = await this.getEventById(id);
     if (!existing) return null;
 
     const now = this.getNow();
     const newEmployeeId = data.employeeId ?? existing.employeeId;
-    const employee = this.lookupEmployee(newEmployeeId);
+    const employee = await this.lookupEmployee(newEmployeeId);
 
     const newStartDate = data.startDate ?? existing.startDate;
     const newEndDate = data.endDate ?? existing.endDate;
     const legacyDate = this.computeLegacyDate(newStartDate, newEndDate) || existing.date;
 
-    const stmt = this.db.prepare(`
-      UPDATE events
-      SET employee_id = ?, employee_name = ?, leave_type = ?,
-          start_date = ?, end_date = ?, date = ?, description = ?, updated_at = ?
-      WHERE id = ?
-    `);
+    const event = await this.prisma.event.update({
+      where: { id },
+      data: {
+        employeeId: newEmployeeId,
+        employeeName: employee.name,
+        leaveType: data.leaveType ?? existing.leaveType,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        date: legacyDate || null,
+        description: data.description ?? existing.description ?? null,
+        updatedAt: now,
+      },
+    });
 
-    const result = stmt.run(
-      newEmployeeId,
-      employee.name,
-      data.leaveType ?? existing.leaveType,
-      newStartDate,
-      newEndDate,
-      legacyDate || null,
-      data.description ?? existing.description ?? null,
-      now,
-      id,
-    );
-
-    if (result.changes === 0) return null;
-    return this.getEventById(id);
+    return this.mapEvent(event);
   }
 
-  deleteEvent(id: number): boolean {
-    const stmt = this.db.prepare('DELETE FROM events WHERE id = ?');
-    return stmt.run(id).changes > 0;
+  async deleteEvent(id: number): Promise<boolean> {
+    try {
+      await this.prisma.event.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  deleteEventsByEmployeeId(employeeId: number): number {
-    const stmt = this.db.prepare('DELETE FROM events WHERE employee_id = ?');
-    return stmt.run(employeeId).changes;
+  async deleteEventsByEmployeeId(employeeId: number): Promise<number> {
+    const result = await this.prisma.event.deleteMany({ where: { employeeId } });
+    return result.count;
   }
 
   // ── Search & Upcoming ────────────────────────────────────────
 
-  searchEvents(query: string): Event[] {
-    const stmt = this.db.prepare(`
-      SELECT ${EVENT_COLUMNS}
-      FROM events e
-      WHERE e.employee_name LIKE ? OR e.description LIKE ?
-      ORDER BY COALESCE(e.start_date, e.date) DESC
-    `);
-    const term = `%${query}%`;
-    return stmt.all(term, term) as Event[];
+  async searchEvents(query: string): Promise<Event[]> {
+    const events = await this.prisma.event.findMany({
+      where: {
+        OR: [
+          { employeeName: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { startDate: 'desc' },
+    });
+    return events.map(this.mapEvent);
   }
 
-  getUpcomingEvents(days: number = 30): Event[] {
+  async getUpcomingEvents(days: number = 30): Promise<Event[]> {
     const today = this.getToday();
     const endDate = moment().utcOffset('+07:00').add(days, 'days').format('YYYY-MM-DD');
     return this.getEventsByDateRange(today, endDate);
@@ -232,52 +208,55 @@ export class EventService {
 
   // ── Stats ────────────────────────────────────────────────────
 
-  getEventStats() {
-    const total = (this.db.prepare('SELECT COUNT(*) as total FROM events').get() as { total: number }).total;
+  async getEventStats() {
+    const total = await this.prisma.event.count();
 
-    const byLeaveType = this.db.prepare(`
-      SELECT leave_type, COUNT(*) as count FROM events GROUP BY leave_type ORDER BY count DESC
-    `).all() as Array<{ leave_type: string; count: number }>;
+    const byLeaveTypeRaw = await this.prisma.event.groupBy({
+      by: ['leaveType'],
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+    });
+    const byLeaveType = byLeaveTypeRaw.map((r) => ({ leave_type: r.leaveType, count: r._count.id }));
 
-    const byMonth = this.db.prepare(`
-      SELECT substr(date, 1, 7) as month, COUNT(*) as count
-      FROM events GROUP BY substr(date, 1, 7) ORDER BY month DESC LIMIT 12
-    `).all() as Array<{ month: string; count: number }>;
+    // For byMonth, we need raw query since Prisma doesn't support substr groupBy
+    const byMonth = await this.prisma.$queryRawUnsafe<Array<{ month: string; count: bigint }>>(
+      `SELECT substring(date, 1, 7) as month, COUNT(*) as count FROM events WHERE date IS NOT NULL GROUP BY substring(date, 1, 7) ORDER BY month DESC LIMIT 12`
+    );
+    const byMonthFormatted = byMonth.map((r) => ({ month: r.month, count: Number(r.count) }));
 
-    return { total, byLeaveType, byMonth };
+    return { total, byLeaveType, byMonth: byMonthFormatted };
   }
 
   // ── Bulk Delete ──────────────────────────────────────────────
 
-  /**
-   * Shared delete logic for events overlapping a date range.
-   */
-  private deleteEventsInRange(startDate: string, endDate: string): { deletedCount: number } {
-    const stmt = this.db.prepare(`
-      DELETE FROM events
-      WHERE start_date >= ? AND start_date <= ?
-         OR end_date >= ? AND end_date <= ?
-         OR (start_date <= ? AND end_date >= ?)
-    `);
-    const result = stmt.run(startDate, endDate, startDate, endDate, startDate, endDate);
-    return { deletedCount: result.changes };
+  private async deleteEventsInRange(startDate: string, endDate: string): Promise<{ deletedCount: number }> {
+    const result = await this.prisma.event.deleteMany({
+      where: {
+        OR: [
+          { AND: [{ startDate: { gte: startDate } }, { startDate: { lte: endDate } }] },
+          { AND: [{ endDate: { gte: startDate } }, { endDate: { lte: endDate } }] },
+          { AND: [{ startDate: { lte: startDate } }, { endDate: { gte: endDate } }] },
+        ],
+      },
+    });
+    return { deletedCount: result.count };
   }
 
-  deleteEventsByMonth(year: number, month: number): { deletedCount: number } {
+  async deleteEventsByMonth(year: number, month: number): Promise<{ deletedCount: number }> {
     const startDate = moment().year(year).month(month - 1).startOf('month').format('YYYY-MM-DD');
     const endDate = moment().year(year).month(month - 1).endOf('month').format('YYYY-MM-DD');
     return this.deleteEventsInRange(startDate, endDate);
   }
 
-  deleteEventsByYear(year: number): { deletedCount: number } {
+  async deleteEventsByYear(year: number): Promise<{ deletedCount: number }> {
     const startDate = moment().year(year).startOf('year').format('YYYY-MM-DD');
     const endDate = moment().year(year).endOf('year').format('YYYY-MM-DD');
     return this.deleteEventsInRange(startDate, endDate);
   }
 
-  deleteAllEvents(): { deletedCount: number } {
-    const result = this.db.prepare('DELETE FROM events').run();
-    return { deletedCount: result.changes };
+  async deleteAllEvents(): Promise<{ deletedCount: number }> {
+    const result = await this.prisma.event.deleteMany();
+    return { deletedCount: result.count };
   }
 
   // ── Dashboard ────────────────────────────────────────────────
@@ -300,71 +279,75 @@ export class EventService {
     return businessDays;
   }
 
-  getDashboardSummary(startDate?: string, endDate?: string, eventType?: string, includeFutureEvents?: boolean) {
-    let whereClause = '';
-    let joinWhereClause = '';
-    const baseParams: any[] = [];
-    const joinParams: any[] = [];
+  async getDashboardSummary(startDate?: string, endDate?: string, eventType?: string, includeFutureEvents?: boolean) {
+    // Build where clause for Prisma
+    const andConditions: any[] = [];
 
     if (startDate && endDate) {
-      whereClause = 'WHERE ((date >= ? AND date <= ?) OR (start_date <= ? AND end_date >= ?))';
-      joinWhereClause = 'WHERE ((e.date >= ? AND e.date <= ?) OR (e.start_date <= ? AND e.end_date >= ?))';
-      baseParams.push(startDate, endDate, endDate, startDate);
-      joinParams.push(startDate, endDate, endDate, startDate);
+      andConditions.push({
+        OR: [
+          { AND: [{ date: { gte: startDate } }, { date: { lte: endDate } }] },
+          { AND: [{ startDate: { lte: endDate } }, { endDate: { gte: startDate } }] },
+        ],
+      });
     }
 
     if (!includeFutureEvents) {
       const today = moment().format('YYYY-MM-DD');
-      const prefix = whereClause ? ' AND' : 'WHERE';
-      whereClause += `${prefix} (COALESCE(start_date, date) <= ?)`;
-      joinWhereClause += `${prefix.replace('AND', ' AND').replace('WHERE', 'WHERE')} (COALESCE(e.start_date, e.date) <= ?)`;
-      // Fix: handle prefix for join clause properly
-      if (!joinWhereClause.startsWith('WHERE')) {
-        joinWhereClause = `WHERE (COALESCE(e.start_date, e.date) <= ?)`;
-      }
-      baseParams.push(today);
-      joinParams.push(today);
+      andConditions.push({
+        OR: [
+          { startDate: { lte: today } },
+          { AND: [{ startDate: null }, { date: { lte: today } }] },
+        ],
+      });
     }
 
     if (eventType && eventType !== 'all') {
-      const prefix = whereClause ? ' AND' : 'WHERE';
-      whereClause += `${prefix} leave_type = ?`;
-      const jPrefix = joinWhereClause ? ' AND' : 'WHERE';
-      joinWhereClause += `${jPrefix} e.leave_type = ?`;
-      baseParams.push(eventType);
-      joinParams.push(eventType);
+      andConditions.push({ leaveType: eventType });
     }
 
-    const { totalEvents } = this.db.prepare(`SELECT COUNT(*) as totalEvents FROM events ${whereClause}`).get(...baseParams) as { totalEvents: number };
-    const { totalEmployees } = this.db.prepare(`SELECT COUNT(DISTINCT employee_id) as totalEmployees FROM events ${whereClause}`).get(...baseParams) as { totalEmployees: number };
+    const where = andConditions.length > 0 ? { AND: andConditions } : {};
 
-    const mostCommonResult = this.db.prepare(`
-      SELECT leave_type, COUNT(*) as count FROM events ${whereClause} GROUP BY leave_type ORDER BY count DESC LIMIT 1
-    `).get(...baseParams) as { leave_type: string; count: number } | undefined;
-    const mostCommonType = mostCommonResult?.leave_type || 'N/A';
+    const totalEvents = await this.prisma.event.count({ where });
+    const distinctEmployees = await this.prisma.event.findMany({
+      where,
+      select: { employeeId: true },
+      distinct: ['employeeId'],
+    });
+    const totalEmployees = distinctEmployees.length;
+
+    // Most common leave type
+    const mostCommonRaw = await this.prisma.event.groupBy({
+      by: ['leaveType'],
+      where,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 1,
+    });
+    const mostCommonType = mostCommonRaw.length > 0 ? mostCommonRaw[0]!.leaveType : 'N/A';
 
     // Company holidays for business day calculation
-    const holidays = this.db.prepare(`SELECT date FROM company_holidays WHERE date >= ? AND date <= ?`).all(
-      startDate || '1900-01-01',
-      endDate || '2100-12-31',
-    ) as Array<{ date: string }>;
+    const holidays = await this.prisma.companyHoliday.findMany({
+      where: {
+        date: { gte: startDate || '1900-01-01', lte: endDate || '2100-12-31' },
+      },
+      select: { date: true },
+    });
     const companyHolidayDates = holidays.map((h) => h.date);
 
     // Employee ranking
-    const rankingData = this.db.prepare(`
-      SELECT e.employee_id as employeeId, COALESCE(e.employee_name, emp.name) as employeeName,
-             e.leave_type as leaveType, COUNT(*) as count
-      FROM events e LEFT JOIN employees emp ON e.employee_id = emp.id
-      ${joinWhereClause}
-      GROUP BY e.employee_id, COALESCE(e.employee_name, emp.name), e.leave_type
-      ORDER BY COALESCE(e.employee_name, emp.name) ASC
-    `).all(...joinParams) as Array<{ employeeId: number; employeeName: string; leaveType: string; count: number }>;
+    const rankingRaw = await this.prisma.event.groupBy({
+      by: ['employeeId', 'employeeName', 'leaveType'],
+      where,
+      _count: { id: true },
+      orderBy: { employeeName: 'asc' },
+    });
 
     // All events for biz days
-    const allEvents = this.db.prepare(`
-      SELECT id, employee_id as employeeId, start_date as startDate, end_date as endDate, date
-      FROM events ${whereClause}
-    `).all(...baseParams) as Array<{ id: number; employeeId: number; startDate: string | null; endDate: string | null; date: string | null }>;
+    const allEvents = await this.prisma.event.findMany({
+      where,
+      select: { id: true, employeeId: true, startDate: true, endDate: true, date: true },
+    });
 
     // Calculate total business days
     let totalBusinessDays = 0;
@@ -376,13 +359,13 @@ export class EventService {
 
     // Build employee map
     const employeeMap = new Map<number, { name: string; totalEvents: number; totalBusinessDays: number; eventTypes: Record<string, number> }>();
-    rankingData.forEach((row) => {
+    rankingRaw.forEach((row) => {
       if (!employeeMap.has(row.employeeId)) {
         employeeMap.set(row.employeeId, { name: row.employeeName || 'ไม่ทราบชื่อ', totalEvents: 0, totalBusinessDays: 0, eventTypes: {} });
       }
       const emp = employeeMap.get(row.employeeId)!;
-      emp.totalEvents += row.count;
-      emp.eventTypes[row.leaveType] = row.count;
+      emp.totalEvents += row._count.id;
+      emp.eventTypes[row.leaveType] = row._count.id;
     });
 
     allEvents.forEach((event) => {

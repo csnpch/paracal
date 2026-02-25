@@ -9,6 +9,7 @@ import { Employees } from "./pages/Employees";
 import CronjobConfig from "./pages/CronjobConfig";
 import CompanyHolidays from "./pages/CompanyHolidays";
 import EventsManagement from "./pages/EventsManagement";
+import AdminLogsPage from "./pages/AdminLogs";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="/company-holidays" element={<CompanyHolidays />} />
               <Route path="/events-management" element={<ProtectedRoute><EventsManagement /></ProtectedRoute>} />
               <Route path="/cronjob-config" element={<ProtectedRoute><CronjobConfig /></ProtectedRoute>} />
+              <Route path="/admin/logs" element={<ProtectedRoute><AdminLogsPage /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

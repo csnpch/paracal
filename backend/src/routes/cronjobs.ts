@@ -1,23 +1,22 @@
 import { Elysia, t } from 'elysia';
 import { CronjobService } from '../services/cronjobService';
-import { getDatabase } from '../database/connection';
 import Logger from '../utils/logger';
 
-const cronjobService = new CronjobService(getDatabase());
+const cronjobService = new CronjobService();
 
 export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
-  .get('/', () => {
+  .get('/', async () => {
     try {
-      return { success: true, data: cronjobService.getAllConfigs() };
+      return { success: true, data: await cronjobService.getAllConfigs() };
     } catch (error) {
       Logger.error('Error fetching cronjob configs:', error);
       throw error;
     }
   })
 
-  .get('/status', () => {
+  .get('/status', async () => {
     try {
-      const configs = cronjobService.getEnabledConfigs();
+      const configs = await cronjobService.getEnabledConfigs();
       const statusList = configs.map((cfg) => ({
         id: cfg.id,
         name: cfg.name,
@@ -32,9 +31,9 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     }
   })
 
-  .get('/:id', ({ params: { id } }) => {
+  .get('/:id', async ({ params: { id } }) => {
     try {
-      const cfg = cronjobService.getConfigById(Number(id));
+      const cfg = await cronjobService.getConfigById(Number(id));
       if (!cfg) throw new Error(`Cronjob configuration ${id} not found`);
       return { success: true, data: cfg };
     } catch (error) {
@@ -43,9 +42,9 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     }
   }, { params: t.Object({ id: t.String() }) })
 
-  .post('/', ({ body }) => {
+  .post('/', async ({ body }) => {
     try {
-      const cfg = cronjobService.createConfig({
+      const cfg = await cronjobService.createConfig({
         ...body,
         notification_type: body.notification_type || 'daily',
       });
@@ -68,9 +67,9 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     }),
   })
 
-  .put('/:id', ({ params: { id }, body }) => {
+  .put('/:id', async ({ params: { id }, body }) => {
     try {
-      const cfg = cronjobService.updateConfig(Number(id), body);
+      const cfg = await cronjobService.updateConfig(Number(id), body);
       if (!cfg) throw new Error(`Cronjob configuration ${id} not found`);
       Logger.info(`Updated cronjob config: ${cfg.name}`);
       return { success: true, data: cfg, message: 'Cronjob configuration updated successfully' };
@@ -92,9 +91,9 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     }),
   })
 
-  .delete('/:id', ({ params: { id } }) => {
+  .delete('/:id', async ({ params: { id } }) => {
     try {
-      const success = cronjobService.deleteConfig(Number(id));
+      const success = await cronjobService.deleteConfig(Number(id));
       if (!success) throw new Error(`Cronjob configuration ${id} not found`);
       Logger.info(`Deleted cronjob config: ${id}`);
       return { success: true, message: 'Cronjob configuration deleted successfully' };

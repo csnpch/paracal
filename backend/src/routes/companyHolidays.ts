@@ -1,27 +1,36 @@
 import { Elysia, t } from 'elysia';
 import { CompanyHolidayService } from '../services/companyHolidayService';
+import { logService } from '../services/logService';
 import Logger from '../utils/logger';
 
 const companyHolidayService = new CompanyHolidayService();
 
 export const companyHolidaysRoutes = new Elysia({ prefix: '/company-holidays' })
-  .get('/', () => {
-    return companyHolidayService.getAllCompanyHolidays();
+  .get('/', async () => {
+    return await companyHolidayService.getAllCompanyHolidays();
   })
 
-  .get('/:year', ({ params: { year } }) => {
-    return companyHolidayService.getCompanyHolidaysByYear(Number(year));
+  .get('/:year', async ({ params: { year } }) => {
+    return await companyHolidayService.getCompanyHolidaysByYear(Number(year));
   }, { params: t.Object({ year: t.String() }) })
 
-  .get('/holiday/:id', ({ params: { id } }) => {
-    const holiday = companyHolidayService.getCompanyHolidayById(Number(id));
+  .get('/holiday/:id', async ({ params: { id } }) => {
+    const holiday = await companyHolidayService.getCompanyHolidayById(Number(id));
     if (!holiday) throw new Error('Company holiday not found');
     return holiday;
   }, { params: t.Object({ id: t.String() }) })
 
-  .post('/', ({ body }) => {
+  .post('/', async ({ body }) => {
     Logger.info(`Creating company holiday: ${body.name} on ${body.date}`);
-    return companyHolidayService.createCompanyHoliday(body);
+    const holiday = await companyHolidayService.createCompanyHoliday(body);
+    await logService.writeLog({
+      action: 'CREATE',
+      entity: 'company_holiday',
+      entityId: holiday.id,
+      entityName: holiday.name,
+      detail: `${holiday.name} on ${holiday.date}`,
+    });
+    return holiday;
   }, {
     body: t.Object({
       name: t.String(),
@@ -30,9 +39,9 @@ export const companyHolidaysRoutes = new Elysia({ prefix: '/company-holidays' })
     }),
   })
 
-  .post('/bulk', ({ body }) => {
+  .post('/bulk', async ({ body }) => {
     Logger.info(`Creating ${body.holidays.length} company holidays`);
-    return companyHolidayService.createMultipleCompanyHolidays(body.holidays);
+    return await companyHolidayService.createMultipleCompanyHolidays(body.holidays);
   }, {
     body: t.Object({
       holidays: t.Array(t.Object({
@@ -43,10 +52,17 @@ export const companyHolidaysRoutes = new Elysia({ prefix: '/company-holidays' })
     }),
   })
 
-  .put('/:id', ({ params: { id }, body }) => {
-    const holiday = companyHolidayService.updateCompanyHoliday(Number(id), body);
+  .put('/:id', async ({ params: { id }, body }) => {
+    const holiday = await companyHolidayService.updateCompanyHoliday(Number(id), body);
     if (!holiday) throw new Error('Company holiday not found');
     Logger.info(`Updated company holiday ${id}`);
+    await logService.writeLog({
+      action: 'UPDATE',
+      entity: 'company_holiday',
+      entityId: holiday.id,
+      entityName: holiday.name,
+      detail: `Updated to ${holiday.name} on ${holiday.date}`,
+    });
     return holiday;
   }, {
     params: t.Object({ id: t.String() }),
@@ -57,22 +73,30 @@ export const companyHolidaysRoutes = new Elysia({ prefix: '/company-holidays' })
     }),
   })
 
-  .delete('/clear-all', () => {
+  .delete('/clear-all', async () => {
     Logger.info('Clearing all company holidays');
-    return companyHolidayService.deleteAllCompanyHolidays();
+    const result = await companyHolidayService.deleteAllCompanyHolidays();
+    await logService.writeLog({ action: 'CLEAR', entity: 'company_holiday', detail: 'Cleared all company holidays' });
+    return result;
   })
 
-  .delete('/:id', ({ params: { id } }) => {
-    const success = companyHolidayService.deleteCompanyHoliday(Number(id));
+  .delete('/:id', async ({ params: { id } }) => {
+    const success = await companyHolidayService.deleteCompanyHoliday(Number(id));
     if (!success) throw new Error('Company holiday not found');
     Logger.info(`Deleted company holiday ${id}`);
+    await logService.writeLog({
+      action: 'DELETE',
+      entity: 'company_holiday',
+      entityId: Number(id),
+      detail: `Deleted company holiday ID ${id}`,
+    });
     return { success: true };
   }, { params: t.Object({ id: t.String() }) })
 
-  .get('/range/:startDate/:endDate', ({ params: { startDate, endDate } }) => {
-    return companyHolidayService.getCompanyHolidaysForDateRange(startDate, endDate);
+  .get('/range/:startDate/:endDate', async ({ params: { startDate, endDate } }) => {
+    return await companyHolidayService.getCompanyHolidaysForDateRange(startDate, endDate);
   }, { params: t.Object({ startDate: t.String(), endDate: t.String() }) })
 
-  .get('/check/:date', ({ params: { date } }) => {
-    return { date, isHoliday: companyHolidayService.isCompanyHoliday(date) };
+  .get('/check/:date', async ({ params: { date } }) => {
+    return { date, isHoliday: await companyHolidayService.isCompanyHoliday(date) };
   }, { params: t.Object({ date: t.String() }) });
