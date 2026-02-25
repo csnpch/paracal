@@ -439,7 +439,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   <span className="text-gray-600 dark:text-gray-300 leading-none">{LEAVE_TYPE_LABELS.vacation}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-purple-100 dark:bg-purple-800 border border-purple-200 dark:border-purple-600"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-100 dark:bg-rose-800 border border-rose-200 dark:border-rose-600"></div>
                   <span className="text-gray-600 dark:text-gray-300 leading-none">{LEAVE_TYPE_LABELS.sick}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -447,15 +447,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   <span className="text-gray-600 dark:text-gray-300 leading-none">{LEAVE_TYPE_LABELS.personal}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-slate-100 dark:bg-slate-600 border border-slate-200 dark:border-slate-400"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-transparent border-2 border-amber-400 dark:border-amber-500"></div>
                   <span className="text-gray-600 dark:text-gray-300 leading-none">{LEAVE_TYPE_LABELS.unpaid}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-100 dark:bg-emerald-800 border border-emerald-200 dark:border-emerald-600"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-transparent border-2 border-emerald-400 dark:border-emerald-500"></div>
                   <span className="text-gray-600 dark:text-gray-300 leading-none">{LEAVE_TYPE_LABELS.compensatory}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-gray-50 dark:bg-gray-600 border border-gray-200 dark:border-gray-400"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-violet-100 dark:bg-violet-800 border border-violet-200 dark:border-violet-600"></div>
                   <span className="text-gray-600 dark:text-gray-300 leading-none">{LEAVE_TYPE_LABELS.other}</span>
                 </div>
               </div>

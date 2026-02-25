@@ -25,32 +25,35 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     // Check if running in browser
     if (typeof window !== 'undefined') {
+      // Clean up old key
+      localStorage.removeItem('theme');
+
       // Check localStorage first
-      const savedTheme = localStorage.getItem('theme') as Theme;
+      const savedTheme = localStorage.getItem('paracal-theme') as Theme;
       if (savedTheme) {
         return savedTheme;
       }
-      
+
       // Check system preference
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         return 'dark';
       }
     }
-    
-    return 'light';
+
+    return 'dark';
   });
 
   useEffect(() => {
     const root = window.document.documentElement;
-    
+
     // Remove existing theme classes
     root.classList.remove('light', 'dark');
-    
+
     // Add current theme class
     root.classList.add(theme);
-    
+
     // Save to localStorage
-    localStorage.setItem('theme', theme);
+    localStorage.setItem('paracal-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {

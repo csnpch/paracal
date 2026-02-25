@@ -18,12 +18,12 @@ export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
 // ─── Leave Type Theme Colors (for notifications) ─────────────
 
 export const LEAVE_TYPE_THEME_COLORS: Record<LeaveType, string> = {
-  sick: '#ff4444',
+  sick: '#e11d48',
   personal: '#0078d4',
   vacation: '#107c10',
-  unpaid: '#69797e',
+  unpaid: '#d97706',
   compensatory: '#00875a',
-  other: '#8764b8',
+  other: '#7c3aed',
 };
 
 // ─── Leave Type UI Colors (Tailwind classes) ─────────────────
@@ -34,13 +34,13 @@ export const LEAVE_TYPE_COLORS: Record<LeaveType, string> = {
     'bg-blue-100 dark:bg-blue-800/40 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-600',
   personal:
     'bg-stone-50 dark:bg-stone-600/40 text-stone-700 dark:text-stone-100 border-stone-200 dark:border-stone-400',
-  sick: 'bg-purple-100 dark:bg-purple-800/40 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-600',
+  sick: 'bg-rose-100 dark:bg-rose-800/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-600',
   unpaid:
-    'bg-slate-100 dark:bg-slate-700/40 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-500',
+    'bg-amber-100 dark:bg-amber-800/40 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-600',
   compensatory:
     'bg-emerald-100 dark:bg-emerald-800/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-600',
   other:
-    'bg-gray-50 dark:bg-gray-700/40 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-500',
+    'bg-violet-100 dark:bg-violet-800/40 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-600',
 };
 
 /** Solid colors for calendar grid (100% opacity) */
@@ -49,13 +49,13 @@ export const LEAVE_TYPE_COLORS_SOLID: Record<LeaveType, string> = {
     'bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-600',
   personal:
     'bg-stone-50 dark:bg-stone-600 text-stone-700 dark:text-stone-100 border-stone-200 dark:border-stone-400',
-  sick: 'bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-600',
+  sick: 'bg-rose-100 dark:bg-rose-800 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-600',
   unpaid:
-    'bg-slate-100 dark:bg-slate-600 text-slate-700 dark:text-slate-100 border-slate-200 dark:border-slate-400',
+    'bg-transparent dark:bg-transparent text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-500',
   compensatory:
-    'bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-600',
+    'bg-transparent dark:bg-transparent text-emerald-700 dark:text-emerald-300 border-emerald-400 dark:border-emerald-500',
   other:
-    'bg-gray-50 dark:bg-gray-600 text-gray-700 dark:text-gray-100 border-gray-200 dark:border-gray-400',
+    'bg-violet-100 dark:bg-violet-800 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-600',
 };
 
 // ─── Utility Functions ───────────────────────────────────────

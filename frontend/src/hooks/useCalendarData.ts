@@ -86,7 +86,9 @@ export const useCalendarData = () => {
 
   const addEvent = async (event: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      return await db.createEvent(event);
+      const newEvent = await db.createEvent(event);
+      setEvents((prev) => [...prev, newEvent]);
+      return newEvent;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add event');
       throw err;
@@ -96,7 +98,10 @@ export const useCalendarData = () => {
   const updateEvent = async (id: number, updates: Partial<Omit<Event, 'id' | 'createdAt' | 'updatedAt'>>) => {
     try {
       const updatedEvent = await db.updateEvent(id, updates);
-      if (updatedEvent) return updatedEvent;
+      if (updatedEvent) {
+        setEvents((prev) => prev.map((evt) => (evt.id === id ? updatedEvent : evt)));
+        return updatedEvent;
+      }
       throw new Error('Event not found');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update event');
@@ -106,7 +111,11 @@ export const useCalendarData = () => {
 
   const deleteEvent = async (id: number) => {
     try {
-      return await db.deleteEvent(id);
+      const success = await db.deleteEvent(id);
+      if (success) {
+        setEvents((prev) => prev.filter((evt) => evt.id !== id));
+      }
+      return success;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete event');
       throw err;

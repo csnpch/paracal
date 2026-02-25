@@ -37,8 +37,6 @@ const CalendarEvents = () => {
     updateEvent,
     deleteEvent,
     getEventsForDate,
-    loadEventsForMonth,
-    loadData
   } = useCalendarData();
 
   // Calculate the range of years that will be visible in the calendar grid
@@ -128,11 +126,6 @@ const CalendarEvents = () => {
     if (window.confirm('คุณต้องการลบเหตุการณ์นี้หรือไม่?')) {
       try {
         await deleteEvent(eventId);
-        await loadData();
-        if (selectedDate) {
-          const dayEvents = getEventsForDate(selectedDate);
-          setSelectedDateEvents(dayEvents);
-        }
       } catch (error) {
         console.error('Failed to delete event:', error);
       }
@@ -165,13 +158,6 @@ const CalendarEvents = () => {
           endDate: eventData.endDate,
           description: eventData.description
         });
-      }
-
-      await loadData();
-
-      if (selectedDate) {
-        const dayEvents = getEventsForDate(selectedDate);
-        setSelectedDateEvents(dayEvents);
       }
 
       setEditingEvent(null);
