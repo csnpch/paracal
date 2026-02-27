@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Calendar, FileText, CalendarDays } from 'lucide-react';
+import { X, User, Calendar, FileText, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +25,7 @@ interface EventModalProps {
   selectedDateRange?: Date[];
   employees: { id: number; name: string }[];
   editingEvent?: Event | null;
+  companyHolidays?: any[];
 }
 
 const LEAVE_TYPES = Object.entries(LEAVE_TYPE_LABELS).map(([value, label]) => ({
@@ -40,16 +40,18 @@ export const EventModal: React.FC<EventModalProps> = ({
   selectedDate,
   selectedDateRange,
   employees,
-  editingEvent
+  editingEvent,
+  companyHolidays = []
 }) => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [leaveType, setLeaveType] = useState('');
   const [description, setDescription] = useState('');
-  
+
   // Date range states
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [useCustomDates, setUseCustomDates] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Initialize form with editing event data
   useEffect(() => {
@@ -62,43 +64,45 @@ export const EventModal: React.FC<EventModalProps> = ({
       setSelectedEmployeeId(null);
       setLeaveType('');
       setDescription('');
-      
+
       // Initialize custom dates if we have a date range
       if (selectedDateRange && selectedDateRange.length > 1) {
         setCustomStartDate(moment(selectedDateRange[0]).format('YYYY-MM-DD'));
         setCustomEndDate(moment(selectedDateRange[selectedDateRange.length - 1]).format('YYYY-MM-DD'));
-        setUseCustomDates(true); // Always show date inputs for multi-day events
+        setUseCustomDates(true);
+        setShowAdvanced(false); // Always hidden by default
       } else {
-        setCustomStartDate('');
+        setCustomStartDate(selectedDate ? moment(selectedDate).format('YYYY-MM-DD') : '');
         setCustomEndDate('');
         setUseCustomDates(false);
+        setShowAdvanced(false);
       }
     }
-  }, [editingEvent, isOpen, selectedDateRange]);
+  }, [editingEvent, isOpen, selectedDateRange, selectedDate]);
 
   const generateDateRange = (startDate: string, endDate: string): Date[] => {
     const dates = [];
     let current = moment(startDate);
     const end = moment(endDate);
-    
+
     while (current.isSameOrBefore(end)) {
       dates.push(current.toDate());
       current = current.clone().add(1, 'day');
     }
-    
+
     return dates;
   };
 
   const handleSave = () => {
     if (!selectedEmployeeId || !leaveType) return;
     if (!Array.isArray(employees)) return;
-    
+
     // Validate custom dates if they're being used
     if (useCustomDates && (!customStartDate || !customEndDate)) {
       alert('กรุณาเลือกวันที่เริ่มต้นและสิ้นสุด');
       return;
     }
-    
+
     // Validate that we have either selectedDate or custom dates
     if (!selectedDate && (!useCustomDates || !customStartDate)) return;
 
@@ -109,10 +113,10 @@ export const EventModal: React.FC<EventModalProps> = ({
     let endDate: string;
 
     // Determine start and end dates
-    if (useCustomDates && customStartDate && customEndDate) {
+    if (useCustomDates && showAdvanced && customStartDate) {
       // Use custom date range
       startDate = customStartDate;
-      endDate = customEndDate;
+      endDate = customEndDate || customStartDate;
     } else if (selectedDateRange && selectedDateRange.length > 1) {
       // Use original selected date range
       startDate = moment(selectedDateRange[0]).format('YYYY-MM-DD');
@@ -127,13 +131,13 @@ export const EventModal: React.FC<EventModalProps> = ({
 
     // Auto-generate description for multi-day events
     let finalDescription = description;
-    
+
     // If it's a multi-day event (different start and end dates), add date range info to description
     if (startDate !== endDate) {
       const startFormatted = moment(startDate).format('DD/MM/YYYY');
       const endFormatted = moment(endDate).format('DD/MM/YYYY');
       const dateRangeInfo = `ช่วงวันที่: ${startFormatted} - ${endFormatted}`;
-      
+
       if (description.trim()) {
         finalDescription = `${dateRangeInfo} - ${description}`;
       } else {
@@ -174,11 +178,11 @@ export const EventModal: React.FC<EventModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-2 sm:p-4"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs sm:max-w-sm md:max-w-md transform transition-all max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -195,16 +199,44 @@ export const EventModal: React.FC<EventModalProps> = ({
               <X className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5" />
             </Button>
           </div>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1 sm:mt-2">
-            {selectedDateRange && selectedDateRange.length > 1 
-              ? `${formatDate(selectedDateRange[0])} - ${formatDate(selectedDateRange[selectedDateRange.length - 1])} (${selectedDateRange.length} วัน)`
-              : formatDate(selectedDate)
+          {selectedDateRange && selectedDateRange.length > 1 ? (() => {
+            let validDays = 0;
+            const startMoment = moment(selectedDateRange[0]);
+            const endMoment = moment(selectedDateRange[selectedDateRange.length - 1]);
+
+            if (startMoment.isValid() && endMoment.isValid()) {
+              const current = startMoment.clone();
+              while (current.isSameOrBefore(endMoment)) {
+                const date = current.toDate();
+                const isWeekend = current.day() === 0 || current.day() === 6;
+                const dateString = moment(date).format('YYYY-MM-DD');
+                const isCompanyHoliday = companyHolidays.some((h: any) => h.date === dateString);
+                if (!isCompanyHoliday && !isWeekend) {
+                  validDays++;
+                }
+                current.add(1, 'day');
+              }
             }
-          </p>
+
+            return (
+              <div className="flex flex-col text-xs sm:text-sm text-gray-700 dark:text-gray-200 mt-2 space-y-0.5">
+                <span>วันเริ่มต้น: {formatDate(selectedDateRange[0])}</span>
+                <span>วันสิ้นสุด: {formatDate(selectedDateRange[selectedDateRange.length - 1])}</span>
+                <span className="text-blue-700 dark:text-blue-300 font-medium pt-0.5 flex flex-col gap-0.5">
+                  <span>👉 เลือกรวมทั้งหมด {validDays} วัน</span>
+                  <span className="text-blue-500 dark:text-blue-400 font-normal opacity-90 text-[11px] sm:text-xs ml-4">* ไม่รวมวันหยุดบริษัทและเสาร์-อาทิตย์</span>
+                </span>
+              </div>
+            );
+          })() : (
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1 sm:mt-2">
+              {selectedDate ? formatDate(selectedDate) : ''}
+            </p>
+          )}
         </div>
 
         {/* Form */}
-        <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+        <div className="p-3 sm:p-4 md:p-6 pb-6 sm:pb-8 space-y-4 sm:space-y-6">
           {/* Employee Selection */}
           <div className="space-y-1 sm:space-y-2">
             <Label htmlFor="employee" className="flex items-center space-x-2 text-xs sm:text-sm">
@@ -239,44 +271,6 @@ export const EventModal: React.FC<EventModalProps> = ({
             />
           </div>
 
-          {/* Date Range Section - Only show for multi-day events */}
-          {(selectedDateRange && selectedDateRange.length > 1) && (
-            <div className="space-y-2 sm:space-y-3 p-3 border rounded-lg bg-blue-50 dark:bg-blue-900/20">
-              <div className="flex items-center space-x-2">
-                <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <Label className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300">
-                  ช่วงวันที่เหตุการณ์ ({selectedDateRange.length} วัน)
-                </Label>
-              </div>
-              
-              <div className="text-xs text-blue-600 dark:text-blue-400 mb-2">
-                เริ่มต้น: {formatDate(selectedDateRange[0])} - สิ้นสุด: {formatDate(selectedDateRange[selectedDateRange.length - 1])}
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs text-gray-600 dark:text-gray-400">วันเริ่มต้น</Label>
-                  <Input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="text-xs sm:text-sm h-8"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-600 dark:text-gray-400">วันสิ้นสุด</Label>
-                  <Input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    min={customStartDate}
-                    className="text-xs sm:text-sm h-8"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Description */}
           <div className="space-y-1 sm:space-y-2">
             <Label htmlFor="description" className="text-xs sm:text-sm">หมายเหตุ (ไม่บังคับ)</Label>
@@ -289,15 +283,116 @@ export const EventModal: React.FC<EventModalProps> = ({
               className="text-xs sm:text-sm resize-none"
             />
           </div>
+
+          {/* Advanced / Date Range Section */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAdvanced(!showAdvanced);
+                if (!showAdvanced) {
+                  // When opening advanced, ensure customStartDate is populated
+                  setUseCustomDates(true);
+                  if (!customStartDate && selectedDate) {
+                    setCustomStartDate(moment(selectedDate).format('YYYY-MM-DD'));
+                  }
+                }
+              }}
+              className="group flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors font-medium focus:outline-none"
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>กำหนดวันที่แบบละเอียด (Advanced)</span>
+              {showAdvanced ? (
+                <ChevronUp className="w-3.5 h-3.5 transition-transform group-hover:-translate-y-px" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-px" />
+              )}
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex items-center h-5">
+                      <Label className="text-xs text-gray-600 dark:text-gray-400">วันเริ่มต้น</Label>
+                    </div>
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="text-xs sm:text-sm h-8 w-full block"
+                      style={{ WebkitAppearance: 'none' }}
+                    />
+                  </div>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex items-center justify-between h-5">
+                      <Label className="text-xs text-gray-600 dark:text-gray-400">วันสิ้นสุด</Label>
+                      {customEndDate && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomEndDate('')}
+                          className="text-[10px] text-gray-500 hover:text-red-500"
+                        >
+                          ล้าง
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      min={customStartDate}
+                      className="text-xs sm:text-sm h-8 w-full block"
+                      style={{ WebkitAppearance: 'none' }}
+                      placeholder="ไม่ต้องระบุหากเป็นวันเดียว"
+                    />
+                  </div>
+                </div>
+                {!customEndDate ? (
+                  <p className="mt-2 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                    * หากไม่ระบุวันสิ้นสุด ระบบจะบันทึกเป็นเหตุการณ์ 1 วัน
+                  </p>
+                ) : (() => {
+                  let validDays = 0;
+                  const startMoment = moment(customStartDate);
+                  const endMoment = moment(customEndDate);
+
+                  if (startMoment.isValid() && endMoment.isValid() && startMoment.isSameOrBefore(endMoment)) {
+                    const current = startMoment.clone();
+                    while (current.isSameOrBefore(endMoment)) {
+                      const date = current.toDate();
+                      const isWeekend = current.day() === 0 || current.day() === 6;
+
+                      const dateString = moment(date).format('YYYY-MM-DD');
+                      const isCompanyHoliday = companyHolidays.some((h: any) => h.date === dateString);
+
+                      if (!isCompanyHoliday && !isWeekend) {
+                        validDays++;
+                      }
+                      current.add(1, 'day');
+                    }
+
+                    return (
+                      <div className="mt-2 text-[10px] sm:text-xs text-blue-800 dark:text-blue-200 font-medium pt-0.5 flex flex-col gap-0.5">
+                        <span>👉 เลือกรวมทั้งหมด {validDays} วัน</span>
+                        <span className="text-blue-500 dark:text-blue-300 font-normal text-[10px] sm:text-xs ml-4">* ไม่รวมวันหยุดบริษัทและเสาร์-อาทิตย์</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+        <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 flex flex-row space-x-2 sm:space-x-3">
           <Button variant="outline" onClick={onClose} className="flex-1 text-xs sm:text-sm h-8 sm:h-9">
             ยกเลิก
           </Button>
-          <Button 
-            onClick={handleSave} 
+          <Button
+            onClick={handleSave}
             disabled={!selectedEmployeeId || !leaveType}
             className="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-gray-700 dark:hover:bg-gray-800 text-white text-xs sm:text-sm h-8 sm:h-9"
           >

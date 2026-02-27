@@ -407,6 +407,7 @@ const CalendarEvents = () => {
         selectedDateRange={selectedDateRange}
         employees={employees}
         editingEvent={editingEvent}
+        companyHolidays={companyHolidays}
       />
 
       {/* Event Details Modal */}

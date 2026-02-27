@@ -59,6 +59,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   const [dragEndDate, setDragEndDate] = useState<Date | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<Date[]>([]);
   const [hoverDateRange, setHoverDateRange] = useState<Date[]>([]);
+  const [selectingEndDateFor, setSelectingEndDateFor] = useState<Date | null>(null);
+  const [tempEndDateFor, setTempEndDateFor] = useState<Date | null>(null);
 
   const [showWeekends, setShowWeekends] = useState(true);
 
@@ -209,6 +211,26 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   };
 
   const handleDateClick = (date: Date) => {
+    // End Date Selection Mode check
+    if (selectingEndDateFor) {
+      if (tempEndDateFor) {
+        // Already chose an end date, clicking again starts a new cycle
+        setSelectingEndDateFor(date);
+        setTempEndDateFor(null);
+        return;
+      }
+
+      if (moment(date).isBefore(moment(selectingEndDateFor), 'day')) {
+        // Ignored or alert
+        alert('วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น');
+        return;
+      }
+
+      setTempEndDateFor(date);
+      return;
+    }
+
+    // Normal Click Handling
     // If we have a date range selected (either valid dates or just hover range), create events for the range
     if (selectedDateRange.length > 1 || hoverDateRange.length > 1) {
       const popoverDate = selectedDateRange.length > 0 ? selectedDateRange[0] : hoverDateRange[0];
@@ -503,6 +525,87 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
           </div>
         </div>
 
+        {/* End Date Selection Banner */}
+        {selectingEndDateFor && (() => {
+          let validDays = 0;
+          if (tempEndDateFor) {
+            const current = moment(selectingEndDateFor).clone();
+            const end = moment(tempEndDateFor);
+            while (current.isSameOrBefore(end)) {
+              const date = current.toDate();
+              const isWeekend = current.day() === 0 || current.day() === 6;
+              if (!isCompanyHoliday(date) && !isWeekend) {
+                validDays++;
+              }
+              current.add(1, 'day');
+            }
+          }
+
+          return (
+            <div className="bg-blue-100 dark:bg-blue-900 border-l-4 border-blue-500 text-blue-700 dark:text-blue-200 p-3 mx-2 sm:mx-4 mt-2 mb-1 rounded flex flex-col sm:flex-row justify-between sm:items-center items-start shadow-sm gap-2">
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold text-sm">เลือกวันสิ้นสุดเหตุการณ์</span>
+                <div className="flex flex-col text-xs mt-0.5 space-y-0.5">
+                  <span>วันเริ่มต้น: {formatDate(selectingEndDateFor)}</span>
+                  {tempEndDateFor && (
+                    <>
+                      <span>วันสิ้นสุด: {formatDate(tempEndDateFor)}</span>
+                      <span className="text-blue-800 dark:text-blue-200 font-medium pt-0.5 flex flex-col gap-0.5">
+                        <span>👉 เลือกรวมทั้งหมด {validDays} วัน</span>
+                        <span className="text-blue-500 dark:text-blue-300 font-normal text-[11px] sm:text-xs ml-4">* ไม่รวมวันหยุดบริษัทและเสาร์-อาทิตย์</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex w-full sm:w-auto space-x-2 mt-2 sm:mt-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 sm:h-8 flex-1 sm:flex-none bg-white hover:bg-gray-50 border-blue-300 text-blue-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-blue-700 dark:text-blue-200"
+                  onClick={() => {
+                    setSelectingEndDateFor(null);
+                    setTempEndDateFor(null);
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                {tempEndDateFor && (
+                  <Button
+                    size="sm"
+                    className="h-7 sm:h-8 flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600 shadow-sm"
+                    onClick={() => {
+                      // Confirm selection
+                      const startMoment = moment(selectingEndDateFor);
+                      const endMoment = moment(tempEndDateFor);
+                      const allDatesInRange = [];
+                      const current = startMoment.clone();
+
+                      while (current.isSameOrBefore(endMoment)) {
+                        const currentDate = current.toDate();
+                        if (!isCompanyHoliday(currentDate)) {
+                          allDatesInRange.push(currentDate);
+                        }
+                        current.add(1, 'day');
+                      }
+
+                      if (allDatesInRange.length > 0) {
+                        setSelectedDateRange(allDatesInRange);
+                        setSelectedPopoverDate(allDatesInRange[0]);
+                        onCreateEvent(allDatesInRange[0], allDatesInRange);
+                      }
+                      setSelectingEndDateFor(null);
+                      setTempEndDateFor(null);
+                    }}
+                  >
+                    ยืนยัน
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Mobile View Mode Tabs */}
         {onViewModeChange && (
           <div className="sm:hidden px-2 pt-2 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 border-b border-gray-200 dark:border-gray-600">
@@ -517,7 +620,30 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         )}
 
         {/* Calendar Grid */}
-        <div className="p-1 sm:p-2 md:p-3">
+        <div
+          className="p-1 sm:p-2 md:p-3"
+          style={{ touchAction: isDragging ? 'none' : 'auto' }}
+          onTouchMove={(e) => {
+            if (!isDragging) return;
+            if (e.cancelable) {
+              e.preventDefault();
+            }
+            const touch = e.touches[0];
+            const element = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (element) {
+              const cell = element.closest('.calendar-day-cell');
+              if (cell) {
+                const dateStr = cell.getAttribute('data-date');
+                if (dateStr) {
+                  const date = moment(dateStr).toDate();
+                  if (!dragEndDate || !moment(dragEndDate).isSame(moment(date), 'day')) {
+                    handleMouseEnter(date);
+                  }
+                }
+              }
+            }
+          }}
+        >
           {viewMode === 'month' ? (
             <>
               {/* Days of week header */}
@@ -603,14 +729,31 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           }
                         }
 
+                        const isSelectingStart = selectingEndDateFor && !tempEndDateFor && moment(date).isSame(moment(selectingEndDateFor), 'day');
+                        const isTempRangeActive = selectingEndDateFor && tempEndDateFor && moment(date).isBetween(moment(selectingEndDateFor), moment(tempEndDateFor), 'day', '[]');
+                        const isActiveState = isDateInSelectedRange(date) || isDateInHoverRange(date) || isSelectingStart || isTempRangeActive;
+
                         const dayContent = (
                           <div
                             key={`${weekIndex}-${index}`}
-                            className={`aspect-square md:aspect-auto md:h-full calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isDateInSelectedRange(date) || isDateInHoverRange(date) ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!(isDateInSelectedRange(date) || isDateInHoverRange(date)) ? borderColor : ''}`}
+                            className={`aspect-square md:aspect-auto md:h-full calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isActiveState ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!isActiveState ? borderColor : ''}`}
+                            data-date={moment(date).format('YYYY-MM-DD')}
                             onClick={() => handleDateClick(date)}
-                            onMouseDown={() => handleMouseDown(date)}
-                            onMouseEnter={() => handleMouseEnter(date)}
-                            onMouseUp={handleMouseUp}
+                            onMouseDown={() => {
+                              if (!selectingEndDateFor) handleMouseDown(date);
+                            }}
+                            onMouseEnter={() => {
+                              if (!selectingEndDateFor) handleMouseEnter(date);
+                            }}
+                            onMouseUp={() => {
+                              if (!selectingEndDateFor) handleMouseUp();
+                            }}
+                            onTouchStart={() => {
+                              if (!selectingEndDateFor) handleMouseDown(date);
+                            }}
+                            onTouchEnd={() => {
+                              if (!selectingEndDateFor) handleMouseUp();
+                            }}
                           >
                             <div className={`text-xs font-medium mb-0.5 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
                               <span>{moment(date).date()}{thaiHoliday ? '*' : ''}</span>
@@ -765,6 +908,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             selectedDate={selectedPopoverDate}
                             triggerElement={dayElement}
                             isRangeSelection={isMultiDaySelection}
+                            onSelectEndDateMode={(date) => {
+                              setSelectingEndDateFor(date);
+                              setTempEndDateFor(null);
+                              clearSelection();
+                              setPopoverOpen(false);
+                            }}
                           />
                         ) : (
                           dayElement

@@ -22,6 +22,7 @@ interface CreateEventPopoverProps {
   isRangeSelection?: boolean;
   showHolidayDialog?: boolean;
   onHolidayDialogChange?: (open: boolean, date?: Date | null) => void;
+  onSelectEndDateMode?: (date: Date) => void;
 }
 
 export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
@@ -33,7 +34,8 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
   triggerElement,
   isRangeSelection = false,
   showHolidayDialog = false,
-  onHolidayDialogChange
+  onHolidayDialogChange,
+  onSelectEndDateMode
 }) => {
   const { isAdminAuthenticated } = useAuth();
   const [holidayName, setHolidayName] = useState('');
@@ -135,7 +137,12 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
         <PopoverTrigger asChild>
           {triggerElement}
         </PopoverTrigger>
-        <PopoverContent className="w-80 p-0" align="center" side="bottom">
+        <PopoverContent
+          className="w-80 p-0"
+          align="center"
+          side="bottom"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <div className="p-4">
             <div className="mb-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(selectedDate)}</p>
@@ -150,6 +157,20 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
                 <Plus className="w-4 h-4 mr-2" />
                 สร้างเหตุการณ์ใหม่
               </Button>
+
+              {!isRangeSelection && onSelectEndDateMode && selectedDate && (
+                <Button
+                  onClick={() => {
+                    onSelectEndDateMode(selectedDate);
+                    onOpenChange(false);
+                  }}
+                  className="w-full justify-start text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100"
+                  variant="ghost"
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  สร้างเหตุการณ์ใหม่ ({`>`} 1 วัน)
+                </Button>
+              )}
 
               {isAdminAuthenticated && !isRangeSelection && (
                 <Button
