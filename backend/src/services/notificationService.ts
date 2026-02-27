@@ -76,7 +76,9 @@ function buildEventListByType(events: Event[]): string {
     text += `\n- **${type}** (${typeEvents.length} คน):\n`;
     typeEvents.forEach((event) => {
       const name = event.employeeName || 'ไม่ระบุชื่อ';
-      text += event.description?.trim() ? `  - ${name} - *${event.description}*\n` : `  - ${name}\n`;
+      const durationLabel = event.leaveDuration === 'morning' ? '🌤️ ' : event.leaveDuration === 'afternoon' ? '🌥️ ' : '';
+      const postfix = event.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : event.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
+      text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - *${event.description}*\n` : `  - ${durationLabel}${name}${postfix}\n`;
     });
   });
   return text;
@@ -103,7 +105,9 @@ function buildEventListByDate(events: Event[]): string {
       text += `- **${type}** (${typeEvents.length} คน):\n`;
       typeEvents.forEach((event) => {
         const name = event.employeeName || 'ไม่ระบุชื่อ';
-        text += event.description?.trim() ? `  - ${name} - *${event.description}*\n` : `  - ${name}\n`;
+        const durationLabel = event.leaveDuration === 'morning' ? '🌤️ ' : event.leaveDuration === 'afternoon' ? '🌥️ ' : '';
+        const postfix = event.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : event.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
+        text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - *${event.description}*\n` : `  - ${durationLabel}${name}${postfix}\n`;
       });
     });
   });
@@ -117,7 +121,7 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
   const appName = config.appName;
 
   const bodyItems: Array<Record<string, any>> = [
-    { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳️ **${appName}**` },
+    { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳🌥️ **${appName}**` },
   ];
 
   if (customMessage) {
