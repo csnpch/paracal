@@ -758,10 +758,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             <div className={`text-xs font-medium mb-0.5 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
                               <span>{moment(date).date()}{thaiHoliday ? '*' : ''}</span>
                               {/* Global day-level indicators for half-day leaves */}
-                              {(!weekend && !companyHoliday && !isOtherMonth) && (dayEvents.some(e => e.leaveDuration === 'morning') || dayEvents.some(e => e.leaveDuration === 'afternoon')) && (
+                              {(!weekend && !companyHoliday && !isOtherMonth) && (dayEvents.some(e => (e.leaveDuration === 'morning' || e.leaveDuration === 'full_morning' || e.leaveDuration === 'afternoon_morning') && moment(e.endDate).isSame(date, 'day')) || dayEvents.some(e => (e.leaveDuration === 'afternoon' || e.leaveDuration === 'afternoon_full' || e.leaveDuration === 'afternoon_morning') && moment(e.startDate).isSame(date, 'day'))) && (
                                 <div className="flex gap-0.5 pr-0.5 text-[10px] leading-none items-center">
-                                  {dayEvents.some(e => e.leaveDuration === 'morning') && <span title="มีผู้ลาครึ่งเช้า">🌤️</span>}
-                                  {dayEvents.some(e => e.leaveDuration === 'afternoon') && <span title="มีผู้ลาครึ่งบ่าย">🌥️</span>}
+                                  {dayEvents.some(e => (e.leaveDuration === 'morning' || e.leaveDuration === 'full_morning' || e.leaveDuration === 'afternoon_morning') && moment(e.endDate).isSame(date, 'day')) && <span title="มีผู้ลาครึ่งเช้า">🌤️</span>}
+                                  {dayEvents.some(e => (e.leaveDuration === 'afternoon' || e.leaveDuration === 'afternoon_full' || e.leaveDuration === 'afternoon_morning') && moment(e.startDate).isSame(date, 'day')) && <span title="มีผู้ลาครึ่งบ่าย">🌥️</span>}
                                 </div>
                               )}
                             </div>
@@ -786,12 +786,22 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                   // Display text formatting - add dashes for middle days, and add morning/afternoon suffix
                                   let displayText = employeeName;
                                   const typeLabel = LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
-                                  if (hasPrevious && hasNext) {
-                                    displayText = `- ${employeeName} -`;
-                                  } else if (event.leaveDuration === 'morning') {
+
+                                  const isStart = moment(date).isSame(event.startDate, 'day');
+                                  const isEnd = moment(date).isSame(event.endDate, 'day');
+
+                                  const dayIsMorning = (event.leaveDuration === 'morning' && isEnd) || ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && isEnd);
+                                  const dayIsAfternoon = (event.leaveDuration === 'afternoon' && isStart) || ((event.leaveDuration === 'afternoon_full' || event.leaveDuration === 'afternoon_morning') && isStart);
+
+                                  if (dayIsMorning && dayIsAfternoon) {
+                                    // For single day afternoon-morning? Not standard, but just in case
+                                    displayText = `🌤️🌥️ ${employeeName} (${typeLabel})`;
+                                  } else if (dayIsMorning) {
                                     displayText = `🌤️ ${employeeName} (${typeLabel})`;
-                                  } else if (event.leaveDuration === 'afternoon') {
+                                  } else if (dayIsAfternoon) {
                                     displayText = `🌥️ ${employeeName} (${typeLabel})`;
+                                  } else {
+                                    displayText = employeeName;
                                   }
 
                                   // Z-index based on sorted position to ensure proper layering

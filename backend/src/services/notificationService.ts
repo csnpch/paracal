@@ -76,9 +76,20 @@ function buildEventListByType(events: Event[]): string {
     text += `\n- **${type}** (${typeEvents.length} คน):\n`;
     typeEvents.forEach((event) => {
       const name = event.employeeName || 'ไม่ระบุชื่อ';
-      const durationLabel = event.leaveDuration === 'morning' ? '🌤️ ' : event.leaveDuration === 'afternoon' ? '🌥️ ' : '';
-      const postfix = event.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : event.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
-      text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - *${event.description}*\n` : `  - ${durationLabel}${name}${postfix}\n`;
+      // For general list by type (daily notification on a specific day, assume `startDate` or just generally list its global status if start!=end)
+      let durationLabel = '';
+      let postfix = '';
+      
+      if (event.startDate !== event.endDate) {
+         if (event.leaveDuration === 'afternoon_morning') postfix = ' (บ่ายวันเริ่ม-เช้าวันสิ้นสุด)';
+         else if (event.leaveDuration === 'afternoon_full') postfix = ' (บ่ายวันเริ่ม-เต็มวันสิ้นสุด)';
+         else if (event.leaveDuration === 'full_morning') postfix = ' (เต็มวันเริ่ม-เช้าวันสิ้นสุด)';
+      } else {
+         durationLabel = event.leaveDuration === 'morning' ? '🌤️ ' : event.leaveDuration === 'afternoon' ? '🌥️ ' : '';
+         postfix = event.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : event.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
+      }
+      
+      text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - * ${event.description} *\n` : `  - ${durationLabel}${name}${postfix}\n`;
     });
   });
   return text;
@@ -105,8 +116,22 @@ function buildEventListByDate(events: Event[]): string {
       text += `- **${type}** (${typeEvents.length} คน):\n`;
       typeEvents.forEach((event) => {
         const name = event.employeeName || 'ไม่ระบุชื่อ';
-        const durationLabel = event.leaveDuration === 'morning' ? '🌤️ ' : event.leaveDuration === 'afternoon' ? '🌥️ ' : '';
-        const postfix = event.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : event.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
+        
+        let isMorningOnThisDate = event.leaveDuration === 'morning';
+        let isAfternoonOnThisDate = event.leaveDuration === 'afternoon';
+        
+        if (event.startDate !== event.endDate) {
+          if ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && date === event.endDate) {
+            isMorningOnThisDate = true;
+          }
+          if ((event.leaveDuration === 'afternoon_full' || event.leaveDuration === 'afternoon_morning') && date === event.startDate) {
+            isAfternoonOnThisDate = true;
+          }
+        }
+
+        const durationLabel = isMorningOnThisDate ? '🌤️ ' : isAfternoonOnThisDate ? '🌥️ ' : '';
+        const postfix = isMorningOnThisDate ? ' (ครึ่งเช้า)' : isAfternoonOnThisDate ? ' (ครึ่งบ่าย)' : '';
+        
         text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - *${event.description}*\n` : `  - ${durationLabel}${name}${postfix}\n`;
       });
     });

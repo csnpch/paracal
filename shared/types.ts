@@ -11,7 +11,13 @@ export const LEAVE_TYPES = [
 
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 
-export type LeaveDuration = 'full' | 'morning' | 'afternoon';
+export type LeaveDuration = 
+  | 'full' 
+  | 'morning' 
+  | 'afternoon'
+  | 'afternoon_full'
+  | 'full_morning'
+  | 'afternoon_morning';
 
 // ─── Employee ────────────────────────────────────────────────
 

@@ -24,6 +24,9 @@ const leaveDurationSchema = t.Union([
   t.Literal('full'),
   t.Literal('morning'),
   t.Literal('afternoon'),
+  t.Literal('afternoon_full'),
+  t.Literal('full_morning'),
+  t.Literal('afternoon_morning'),
 ]);
 
 const idParam = t.Object({ id: t.String() });

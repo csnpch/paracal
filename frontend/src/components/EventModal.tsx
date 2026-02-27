@@ -47,6 +47,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [leaveType, setLeaveType] = useState('');
   const [leaveDuration, setLeaveDuration] = useState<LeaveDuration>('full');
+  const [startLeaveDuration, setStartLeaveDuration] = useState<'full' | 'afternoon'>('full');
+  const [endLeaveDuration, setEndLeaveDuration] = useState<'full' | 'morning'>('full');
   const [description, setDescription] = useState('');
 
   // Date range states
@@ -60,13 +62,40 @@ export const EventModal: React.FC<EventModalProps> = ({
     if (editingEvent) {
       setSelectedEmployeeId(editingEvent.employeeId);
       setLeaveType(editingEvent.leaveType);
-      setLeaveDuration(editingEvent.leaveDuration || 'full');
+
+      const isMulti = editingEvent.startDate !== editingEvent.endDate;
+      if (isMulti) {
+        if (editingEvent.leaveDuration === 'afternoon_full') {
+          setStartLeaveDuration('afternoon');
+          setEndLeaveDuration('full');
+          setLeaveDuration('full');
+        } else if (editingEvent.leaveDuration === 'full_morning') {
+          setStartLeaveDuration('full');
+          setEndLeaveDuration('morning');
+          setLeaveDuration('full');
+        } else if (editingEvent.leaveDuration === 'afternoon_morning') {
+          setStartLeaveDuration('afternoon');
+          setEndLeaveDuration('morning');
+          setLeaveDuration('full');
+        } else {
+          setStartLeaveDuration('full');
+          setEndLeaveDuration('full');
+          setLeaveDuration(editingEvent.leaveDuration || 'full');
+        }
+      } else {
+        setLeaveDuration(editingEvent.leaveDuration || 'full');
+        setStartLeaveDuration('full');
+        setEndLeaveDuration('full');
+      }
+
       setDescription(editingEvent.description || '');
       setUseCustomDates(false);
     } else {
       setSelectedEmployeeId(null);
       setLeaveType('');
       setLeaveDuration('full');
+      setStartLeaveDuration('full');
+      setEndLeaveDuration('full');
       setDescription('');
 
       // Initialize custom dates if we have a date range
@@ -133,6 +162,19 @@ export const EventModal: React.FC<EventModalProps> = ({
       return; // No valid dates
     }
 
+    let finalLeaveDuration: LeaveDuration = leaveDuration;
+    if (startDate !== endDate) {
+      if (startLeaveDuration === 'afternoon' && endLeaveDuration === 'morning') {
+        finalLeaveDuration = 'afternoon_morning';
+      } else if (startLeaveDuration === 'afternoon') {
+        finalLeaveDuration = 'afternoon_full';
+      } else if (endLeaveDuration === 'morning') {
+        finalLeaveDuration = 'full_morning';
+      } else {
+        finalLeaveDuration = 'full';
+      }
+    }
+
     // Auto-generate description for multi-day events
     let finalDescription = description;
 
@@ -154,7 +196,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       employeeId: selectedEmployeeId,
       employeeName: selectedEmployee.name,
       leaveType,
-      leaveDuration,
+      leaveDuration: finalLeaveDuration,
       startDate,
       endDate,
       description: finalDescription
@@ -164,6 +206,8 @@ export const EventModal: React.FC<EventModalProps> = ({
     setSelectedEmployeeId(null);
     setLeaveType('');
     setLeaveDuration('full');
+    setStartLeaveDuration('full');
+    setEndLeaveDuration('full');
     setDescription('');
     setCustomStartDate('');
     setCustomEndDate('');
@@ -283,31 +327,87 @@ export const EventModal: React.FC<EventModalProps> = ({
               <span className="text-[16px]">⏱️</span>
               <span>ระยะเวลาการลา</span>
             </Label>
-            <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800">
-              <button
-                type="button"
-                className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'full' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                onClick={() => setLeaveDuration('full')}
-              >
-                ◉ เต็มวัน
-              </button>
-              <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
-              <button
-                type="button"
-                className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'morning' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                onClick={() => setLeaveDuration('morning')}
-              >
-                ○ ครึ่งเช้า
-              </button>
-              <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
-              <button
-                type="button"
-                className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'afternoon' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                onClick={() => setLeaveDuration('afternoon')}
-              >
-                ○ ครึ่งบ่าย
-              </button>
-            </div>
+
+            {(() => {
+              let isMultiDay = false;
+              if (useCustomDates && showAdvanced && customStartDate) {
+                isMultiDay = customEndDate ? customEndDate !== customStartDate : false;
+              } else if (selectedDateRange && selectedDateRange.length > 1) {
+                isMultiDay = true;
+              }
+
+              if (isMultiDay) {
+                return (
+                  <div className="space-y-2">
+                    <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800">
+                      <div className="px-3 flex items-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs sm:text-sm border-r border-gray-200 dark:border-gray-600 min-w-[80px]">วันเริ่มต้น</div>
+                      <button
+                        type="button"
+                        className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${startLeaveDuration === 'full' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        onClick={() => setStartLeaveDuration('full')}
+                      >
+                        ◉ เต็มวัน
+                      </button>
+                      <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+                      <button
+                        type="button"
+                        className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${startLeaveDuration === 'afternoon' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        onClick={() => setStartLeaveDuration('afternoon')}
+                      >
+                        ○ ครึ่งบ่าย
+                      </button>
+                    </div>
+
+                    <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800">
+                      <div className="px-3 flex items-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs sm:text-sm border-r border-gray-200 dark:border-gray-600 min-w-[80px]">วันสิ้นสุด</div>
+                      <button
+                        type="button"
+                        className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${endLeaveDuration === 'full' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        onClick={() => setEndLeaveDuration('full')}
+                      >
+                        ◉ เต็มวัน
+                      </button>
+                      <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+                      <button
+                        type="button"
+                        className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${endLeaveDuration === 'morning' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                        onClick={() => setEndLeaveDuration('morning')}
+                      >
+                        ○ ครึ่งเช้า
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800">
+                  <button
+                    type="button"
+                    className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'full' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                    onClick={() => setLeaveDuration('full')}
+                  >
+                    ◉ เต็มวัน
+                  </button>
+                  <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+                  <button
+                    type="button"
+                    className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'morning' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                    onClick={() => setLeaveDuration('morning')}
+                  >
+                    ○ ครึ่งเช้า
+                  </button>
+                  <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+                  <button
+                    type="button"
+                    className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'afternoon' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                    onClick={() => setLeaveDuration('afternoon')}
+                  >
+                    ○ ครึ่งบ่าย
+                  </button>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Description */}
@@ -324,7 +424,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Advanced / Date Range Section */}
-          <div className={`pt-1 ${leaveDuration !== 'full' ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className="pt-1">
             <button
               type="button"
               onClick={() => {
