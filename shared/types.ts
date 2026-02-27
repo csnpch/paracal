@@ -11,6 +11,8 @@ export const LEAVE_TYPES = [
 
 export type LeaveType = (typeof LEAVE_TYPES)[number];
 
+export type LeaveDuration = 'full' | 'morning' | 'afternoon';
+
 // ─── Employee ────────────────────────────────────────────────
 
 export interface Employee {
@@ -35,6 +37,7 @@ export interface Event {
   employeeId: number;
   employeeName: string;
   leaveType: LeaveType;
+  leaveDuration?: LeaveDuration;
   date?: string; // Legacy single-day field (backward compat)
   startDate: string;
   endDate: string;
@@ -46,6 +49,7 @@ export interface Event {
 export interface CreateEventRequest {
   employeeId: number;
   leaveType: LeaveType;
+  leaveDuration?: LeaveDuration;
   startDate: string;
   endDate: string;
   description?: string;
@@ -54,6 +58,7 @@ export interface CreateEventRequest {
 export interface UpdateEventRequest {
   employeeId?: number;
   leaveType?: LeaveType;
+  leaveDuration?: LeaveDuration;
   startDate?: string;
   endDate?: string;
   description?: string;

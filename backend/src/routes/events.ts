@@ -20,6 +20,12 @@ const leaveTypeSchema = t.Union([
   t.Literal('other'),
 ]);
 
+const leaveDurationSchema = t.Union([
+  t.Literal('full'),
+  t.Literal('morning'),
+  t.Literal('afternoon'),
+]);
+
 const idParam = t.Object({ id: t.String() });
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -87,6 +93,7 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     body: t.Object({
       employeeId: t.Number(),
       leaveType: leaveTypeSchema,
+      leaveDuration: t.Optional(leaveDurationSchema),
       startDate: t.String(),
       endDate: t.String(),
       description: t.Optional(t.String()),
@@ -119,6 +126,7 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     body: t.Object({
       employeeId: t.Optional(t.Number()),
       leaveType: t.Optional(leaveTypeSchema),
+      leaveDuration: t.Optional(leaveDurationSchema),
       startDate: t.Optional(t.String()),
       endDate: t.Optional(t.String()),
       description: t.Optional(t.String()),

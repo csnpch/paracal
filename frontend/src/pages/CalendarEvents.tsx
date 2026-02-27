@@ -136,6 +136,7 @@ const CalendarEvents = () => {
     employeeId: number;
     employeeName: string;
     leaveType: string;
+    leaveDuration?: string;
     startDate: string;
     endDate: string;
     description?: string;
@@ -145,6 +146,7 @@ const CalendarEvents = () => {
         await updateEvent(editingEvent.id, {
           employeeId: eventData.employeeId,
           leaveType: eventData.leaveType as any,
+          leaveDuration: eventData.leaveDuration as any,
           startDate: eventData.startDate,
           endDate: eventData.endDate,
           description: eventData.description
@@ -154,6 +156,7 @@ const CalendarEvents = () => {
           employeeId: eventData.employeeId,
           employeeName: eventData.employeeName,
           leaveType: eventData.leaveType as any,
+          leaveDuration: eventData.leaveDuration as any,
           startDate: eventData.startDate,
           endDate: eventData.endDate,
           description: eventData.description

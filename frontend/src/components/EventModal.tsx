@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { Textarea } from '@/components/ui/textarea';
-import { Event } from '@/services/apiDatabase';
+import { Event, LeaveDuration } from '@/services/apiDatabase';
 import { LEAVE_TYPE_LABELS, formatDate } from '@/lib/utils';
 import moment from 'moment';
 
@@ -17,6 +17,7 @@ interface EventModalProps {
     employeeId: number;
     employeeName: string;
     leaveType: string;
+    leaveDuration: LeaveDuration;
     startDate: string;
     endDate: string;
     description?: string;
@@ -45,6 +46,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 }) => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [leaveType, setLeaveType] = useState('');
+  const [leaveDuration, setLeaveDuration] = useState<LeaveDuration>('full');
   const [description, setDescription] = useState('');
 
   // Date range states
@@ -58,11 +60,13 @@ export const EventModal: React.FC<EventModalProps> = ({
     if (editingEvent) {
       setSelectedEmployeeId(editingEvent.employeeId);
       setLeaveType(editingEvent.leaveType);
+      setLeaveDuration(editingEvent.leaveDuration || 'full');
       setDescription(editingEvent.description || '');
       setUseCustomDates(false);
     } else {
       setSelectedEmployeeId(null);
       setLeaveType('');
+      setLeaveDuration('full');
       setDescription('');
 
       // Initialize custom dates if we have a date range
@@ -150,6 +154,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       employeeId: selectedEmployeeId,
       employeeName: selectedEmployee.name,
       leaveType,
+      leaveDuration,
       startDate,
       endDate,
       description: finalDescription
@@ -158,6 +163,7 @@ export const EventModal: React.FC<EventModalProps> = ({
     // Reset form
     setSelectedEmployeeId(null);
     setLeaveType('');
+    setLeaveDuration('full');
     setDescription('');
     setCustomStartDate('');
     setCustomEndDate('');
@@ -271,6 +277,39 @@ export const EventModal: React.FC<EventModalProps> = ({
             />
           </div>
 
+          {/* Duration */}
+          <div className="space-y-1 sm:space-y-2">
+            <Label className="flex items-center space-x-2 text-xs sm:text-sm">
+              <span className="text-[16px]">⏱️</span>
+              <span>ระยะเวลาการลา</span>
+            </Label>
+            <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800">
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'full' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                onClick={() => setLeaveDuration('full')}
+              >
+                ◉ เต็มวัน
+              </button>
+              <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'morning' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                onClick={() => setLeaveDuration('morning')}
+              >
+                ○ ครึ่งเช้า
+              </button>
+              <div className="w-px bg-gray-200 dark:bg-gray-700"></div>
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-xs sm:text-sm font-medium transition-colors ${leaveDuration === 'afternoon' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                onClick={() => setLeaveDuration('afternoon')}
+              >
+                ○ ครึ่งบ่าย
+              </button>
+            </div>
+          </div>
+
           {/* Description */}
           <div className="space-y-1 sm:space-y-2">
             <Label htmlFor="description" className="text-xs sm:text-sm">หมายเหตุ (ไม่บังคับ)</Label>
@@ -285,7 +324,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           </div>
 
           {/* Advanced / Date Range Section */}
-          <div className="pt-1">
+          <div className={`pt-1 ${leaveDuration !== 'full' ? 'opacity-50 pointer-events-none' : ''}`}>
             <button
               type="button"
               onClick={() => {
@@ -309,7 +348,13 @@ export const EventModal: React.FC<EventModalProps> = ({
               )}
             </button>
 
-            {showAdvanced && (
+            {leaveDuration !== 'full' && (
+              <p className="mt-1 text-[10px] sm:text-xs text-orange-600 dark:text-orange-400">
+                *หมายเหตุ: เมื่อเลือกลาครึ่งวัน จะไม่สามารถเลือกวันที่แบบล่วงหน้าหลายวันได้
+              </p>
+            )}
+
+            {showAdvanced && leaveDuration === 'full' && (
               <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="space-y-1 flex-1 min-w-0">

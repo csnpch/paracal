@@ -9,7 +9,7 @@ import type {
 } from '../../../shared/types';
 
 // Re-export types for downstream consumers
-export type { Employee, Event } from '../../../shared/types';
+export type { Employee, Event, LeaveDuration } from '../../../shared/types';
 
 class ApiDatabaseService {
   // ── Auth operations ──────────────────────────────────────────

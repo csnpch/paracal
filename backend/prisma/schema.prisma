@@ -18,16 +18,17 @@ model Employee {
 }
 
 model Event {
-  id           Int      @id @default(autoincrement())
-  employeeId   Int      @map("employee_id")
-  employeeName String   @map("employee_name")
-  leaveType    String   @map("leave_type")
-  date         String?
-  startDate    String?  @map("start_date")
-  endDate      String?  @map("end_date")
-  description  String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+  id            Int      @id @default(autoincrement())
+  employeeId    Int      @map("employee_id")
+  employeeName  String   @map("employee_name")
+  leaveType     String   @map("leave_type")
+  leaveDuration String   @default("full") @map("leave_duration")
+  date          String?
+  startDate     String?  @map("start_date")
+  endDate       String?  @map("end_date")
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
