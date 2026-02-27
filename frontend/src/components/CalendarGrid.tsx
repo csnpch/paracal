@@ -433,7 +433,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   const visibleDaysOfWeek = showWeekends ? DAYS_OF_WEEK : DAYS_OF_WEEK.filter((_, i) => i !== 0 && i !== 6);
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={150}>
       <div className="bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
         {/* Header */}
         <div className="px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2 border-b border-gray-200 dark:border-gray-600 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600">
@@ -790,31 +790,31 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                     <div
                                       key={event.id}
                                       className={`
-                                    text-xs py-0.5 ${borderRadius} border text-center font-normal
+                                    text-[10px] sm:text-xs py-0.5 ${borderRadius} border text-center font-normal leading-tight
                                     ${LEAVE_TYPE_COLORS_SOLID[event.leaveType as keyof typeof LEAVE_TYPE_COLORS_SOLID] || LEAVE_TYPE_COLORS_SOLID.other}
                                     ${hasPrevious ? 'border-l-0' : 'px-0.5 sm:px-1'}
                                     ${hasNext ? 'border-r-0' : 'px-0.5 sm:px-1'}
                                     ${hasPrevious ? '-ml-1 sm:-ml-2 pl-1 sm:pl-2' : ''}
                                     ${hasNext ? '-mr-1 sm:-mr-2 pr-1 sm:pr-2' : ''}
-                                    relative overflow-visible
+                                    relative overflow-hidden whitespace-nowrap text-ellipsis
                                   `}
                                       style={{ zIndex }}
                                       title={`${employeeName} - ${LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}`}
                                     >
-                                      <span className="sm:inline truncate block">
-                                        {displayText.length > 12 ? displayText.substring(0, 12) + '...' : displayText}
+                                      <span className="hidden sm:inline">
+                                        {displayText}
                                       </span>
-                                      <span className="sm:hidden truncate block">
+                                      <span className="sm:hidden inline">
                                         {hasPrevious && hasNext
-                                          ? `- ${(employeeName.split(' ')[0] || employeeName).substring(0, 4)} -`
-                                          : (employeeName.split(' ')[0] || employeeName).substring(0, 6)
+                                          ? `- ${employeeName.split(' ')[0] || employeeName} -`
+                                          : (employeeName.split(' ')[0] || employeeName)
                                         }
                                       </span>
                                     </div>
                                   );
                                 })}
                                 {dayEvents.length > maxVisibleEvents && (
-                                  <div className="text-xs text-gray-600 text-center font-normal">
+                                  <div className="text-[10px] sm:text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-center font-medium rounded-sm py-0.5 opacity-90 truncate">
                                     +{dayEvents.length - maxVisibleEvents}
                                   </div>
                                 )}
@@ -837,21 +837,38 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           </div>
                         );
 
-                        const dayElement = (thaiHoliday || companyHoliday) ? (
+                        const dayElement = (thaiHoliday || companyHoliday || dayEvents.length > 0) ? (
                           <Tooltip key={`tooltip-${weekIndex}-${index}`}>
                             <TooltipTrigger asChild>
                               {dayContent}
                             </TooltipTrigger>
-                            <TooltipContent side="bottom">
-                              <div className="space-y-1">
+                            <TooltipContent side="bottom" className="max-w-[300px] z-[100] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-md">
+                              <div className="space-y-1.5 p-1">
                                 {thaiHoliday && (
-                                  <div className="text-sm">
-                                    {thaiHoliday.name}
+                                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                    🇹🇭 {thaiHoliday.name}
                                   </div>
                                 )}
                                 {companyHoliday && (
-                                  <div className="text-sm">
-                                    {companyHoliday.name}
+                                  <div className="text-sm font-semibold text-red-600 dark:text-red-400">
+                                    🏢 {companyHoliday.name}
+                                  </div>
+                                )}
+                                {dayEvents.length > 0 && (
+                                  <div className={`mt-1.5 ${thaiHoliday || companyHoliday ? 'pt-2 border-t border-gray-100 dark:border-gray-700' : ''}`}>
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">เหตุการณ์วันนี้ ({dayEvents.length}):</div>
+                                    <ul className="space-y-1.5 flex flex-col items-start text-left">
+                                      {dayEvents.map((evt) => {
+                                        const empName = getEmployeeName(evt.employeeId);
+                                        const typeLabel = LEAVE_TYPE_LABELS[evt.leaveType as keyof typeof LEAVE_TYPE_LABELS] || evt.leaveType;
+                                        return (
+                                          <li key={evt.id} className="text-xs sm:text-sm flex flex-col leading-tight">
+                                            <span className="font-medium text-gray-800 dark:text-gray-200">{empName}</span>
+                                            <span className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs">• {typeLabel}</span>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
                                   </div>
                                 )}
                               </div>
