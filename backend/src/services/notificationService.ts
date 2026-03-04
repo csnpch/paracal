@@ -146,7 +146,7 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
   const appName = config.appName;
 
   const bodyItems: Array<Record<string, any>> = [
-    { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳🌥️ **${appName}**` },
+    { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳ **${appName}**` },
   ];
 
   if (customMessage) {
