@@ -1,6 +1,6 @@
 const config = {
   appName: 'Paracal',
-  appUrl: process.env.APP_URL || 'https://prc.solasu.com/',
+  appUrl: (process.env.APP_URL || 'https://prc.solasu.com').replace(/\/+$/, ''),
   adminPassword: process.env.ADMIN_PASSWORD || '',
   calendarificApiKey: process.env.CALENDARIFIC_API_KEY || '',
   port: Number(process.env.PORT) || 3001,

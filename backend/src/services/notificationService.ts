@@ -8,12 +8,14 @@ import Logger from '../utils/logger';
 // ─── Types ───────────────────────────────────────────────────
 
 export interface TeamsNotificationPayload {
-  type: 'AdaptiveCard';
+  type: 'message';
   attachments: Array<{
     contentType: 'application/vnd.microsoft.card.adaptive';
     contentUrl: null;
     content: {
+      '$schema': string;
       type: 'AdaptiveCard';
+      version: string;
       body: Array<Record<string, any>>;
       actions?: Array<{ type: 'Action.OpenUrl'; title: string; url: string }>;
     };
@@ -72,7 +74,8 @@ function buildEventListByType(events: Event[]): string {
   }, {} as Record<string, Event[]>);
 
   let text = '';
-  Object.entries(eventsByType).forEach(([type, typeEvents]) => {
+  const entries = Object.entries(eventsByType);
+  entries.forEach(([type, typeEvents], index) => {
     text += `\n- **${type}** (${typeEvents.length} คน):\n`;
     typeEvents.forEach((event) => {
       const name = event.employeeName || 'ไม่ระบุชื่อ';
@@ -89,8 +92,10 @@ function buildEventListByType(events: Event[]): string {
          postfix = event.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : event.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
       }
       
-      text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - * ${event.description} *\n` : `  - ${durationLabel}${name}${postfix}\n`;
+      text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - ${event.description}\n` : `  - ${durationLabel}${name}${postfix}\n`;
     });
+    // Add blank line between leave type groups for readability
+    if (index < entries.length - 1) text += '\n';
   });
   return text;
 }
@@ -132,7 +137,7 @@ function buildEventListByDate(events: Event[]): string {
         const durationLabel = isMorningOnThisDate ? '🌤️ ' : isAfternoonOnThisDate ? '🌥️ ' : '';
         const postfix = isMorningOnThisDate ? ' (ครึ่งเช้า)' : isAfternoonOnThisDate ? ' (ครึ่งบ่าย)' : '';
         
-        text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - *${event.description}*\n` : `  - ${durationLabel}${name}${postfix}\n`;
+        text += event.description?.trim() ? `  - ${durationLabel}${name}${postfix} - ${event.description}\n` : `  - ${durationLabel}${name}${postfix}\n`;
       });
     });
   });
@@ -190,12 +195,14 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
   }
 
   return {
-    type: 'AdaptiveCard',
+    type: 'message',
     attachments: [{
       contentType: 'application/vnd.microsoft.card.adaptive',
       contentUrl: null,
       content: {
+        '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
         type: 'AdaptiveCard',
+        version: '1.4',
         body: bodyItems,
         actions: [{ type: 'Action.OpenUrl', title: `Open ${appName}`, url: `${appUrl}/` }],
       },

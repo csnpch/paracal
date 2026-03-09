@@ -707,9 +707,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                           // Today's styling (overrides previous settings for the current day)
                           if (isTodayDate) {
-                            bgColor = 'bg-yellow-50 dark:bg-yellow-900/20';
-                            borderColor = 'border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-200 dark:ring-yellow-600';
-                            textColor = 'text-yellow-900 dark:text-yellow-200 font-semibold';
+                            bgColor = 'bg-blue-50/50 dark:bg-blue-900/30';
+                            borderColor = 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/20 dark:ring-blue-400/20';
+                            textColor = 'text-blue-900 dark:text-blue-50 font-semibold';
                           }
 
                           // Event styling (modifies border and bgColor if it's a plain day with events)
@@ -736,7 +736,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         const dayContent = (
                           <div
                             key={`${weekIndex}-${index}`}
-                            className={`aspect-square md:aspect-auto md:h-full calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-200 select-none hover:shadow-sm hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isActiveState ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!isActiveState ? borderColor : ''}`}
+                            className={`aspect-square md:aspect-auto md:h-full calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-300 select-none hover:shadow-md hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isActiveState ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!isActiveState ? borderColor : ''} ${isTodayDate && !isOtherMonth ? 'shadow-[inset_0_0_8px_rgba(59,130,246,0.1)] calendar-today-glow' : ''}`}
                             data-date={moment(date).format('YYYY-MM-DD')}
                             onClick={() => handleDateClick(date)}
                             onMouseDown={() => {
@@ -755,8 +755,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                               if (!selectingEndDateFor) handleMouseUp();
                             }}
                           >
-                            <div className={`text-xs font-medium mb-0.5 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
-                              <span>{moment(date).date()}{thaiHoliday ? '*' : ''}</span>
+                            <div className={`text-xs font-medium mb-1 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
+                              <div className="flex items-center gap-1">
+                                <span className={isTodayDate && !isOtherMonth ? "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full bg-blue-600 text-white shadow-sm -ml-0.5" : ""}>
+                                  {moment(date).date()}{thaiHoliday ? '*' : ''}
+                                </span>
+                                {isTodayDate && !isOtherMonth && (
+                                  <span className="hidden xs:inline-block text-[10px] sm:text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/50 px-1.5 py-0.5 rounded-full ml-0.5">วันนี้</span>
+                                )}
+                              </div>
                               {/* Global day-level indicators for half-day leaves */}
                               {(!weekend && !companyHoliday && !isOtherMonth) && (dayEvents.some(e => (e.leaveDuration === 'morning' || e.leaveDuration === 'full_morning' || e.leaveDuration === 'afternoon_morning') && moment(e.endDate).isSame(date, 'day')) || dayEvents.some(e => (e.leaveDuration === 'afternoon' || e.leaveDuration === 'afternoon_full' || e.leaveDuration === 'afternoon_morning') && moment(e.startDate).isSame(date, 'day'))) && (
                                 <div className="flex gap-0.5 pr-0.5 text-[10px] leading-none items-center">
@@ -976,7 +983,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 // In day mode, format the header to clearly distinguish today vs tomorrow
                 let dayBadge = null;
                 if (isTodayDate) {
-                  dayBadge = <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full font-medium shadow-sm border border-blue-200 dark:border-blue-800">วันนี้</span>;
+                  dayBadge = <span className="bg-blue-600 text-white text-xs px-2.5 py-0.5 rounded-full font-bold shadow-md animate-pulse-subtle">วันนี้</span>;
                 } else if (viewMode === 'day' && isTomorrow) {
                   dayBadge = <span className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 text-xs px-2 py-0.5 rounded-full font-medium shadow-sm border border-purple-200 dark:border-purple-800">พรุ่งนี้</span>;
                 } else if (viewMode === 'day' && dayIndex === 1) {
@@ -1009,7 +1016,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 return (
                   <div
                     key={dateKey}
-                    className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-visible transition-colors ${viewMode === 'day' ? 'flex-1 p-3 sm:p-5' : 'p-2 sm:p-3'}`}
+                    className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm overflow-visible transition-all duration-300 ${viewMode === 'day' ? 'flex-1 p-3 sm:p-5' : 'p-2 sm:p-3'} ${isTodayDate ? 'border-blue-500 dark:border-blue-400 ring-4 ring-blue-500/10 shadow-lg bg-blue-50/30 dark:bg-blue-900/10 scale-[1.01]' : 'border-gray-200 dark:border-gray-700'}`}
                   >
                     <div className="h-full">
 
