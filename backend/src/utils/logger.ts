@@ -54,9 +54,12 @@ const transports = [
   }),
 ];
 
+// Determine log level based on environment
+const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+
 // Create logger
 const Logger = winston.createLogger({
-  level: 'debug', // Always use debug level for now
+  level: logLevel,
   levels,
   format,
   transports,

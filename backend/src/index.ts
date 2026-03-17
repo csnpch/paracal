@@ -60,7 +60,13 @@ async function startServer() {
       name: 'dynamic-notification-checker',
       pattern: '* * * * *',
       timezone: 'Asia/Bangkok',
-      run() { cronjobService.checkAndExecuteScheduledNotifications(); },
+      async run() {
+        try {
+          await cronjobService.checkAndExecuteScheduledNotifications();
+        } catch (error) {
+          Logger.error('[Cron] Error in notification checker:', error);
+        }
+      },
     }))
     .use(cron({
       name: 'auto-merge-consecutive-events',
