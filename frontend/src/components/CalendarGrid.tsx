@@ -17,7 +17,7 @@ interface CalendarGridProps {
   employees: { id: number; name: string }[];
   companyHolidays: any[];
   highlightedDates?: string[];
-  filteredEmployeeId?: number | null;
+  filteredEmployeeIds?: number[];
   onViewModeChange?: (viewMode: ViewMode) => void;
   onDateClick: (date: Date) => void;
   onCreateEvent: (date: Date, dateRange?: Date[]) => void;
@@ -34,7 +34,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   employees,
   companyHolidays,
   highlightedDates = [],
-  filteredEmployeeId = null,
+  filteredEmployeeIds = [],
   onViewModeChange,
   onDateClick,
   onCreateEvent,
@@ -69,7 +69,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     const updateMaxEvents = () => {
       if (typeof window !== 'undefined') {
         const width = window.innerWidth;
-        setMaxVisibleEvents(width < 640 ? 1 : width < 768 ? 1 : 2);
+        // The user requested to show 2 items + n on mobile devices as well
+        setMaxVisibleEvents(2);
       }
     };
 
@@ -160,8 +161,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     if (!Array.isArray(events)) return [];
     const dateString = moment(date).format('YYYY-MM-DD');
     const filteredEvents = events.filter(event => {
-      // Filter by employee if filteredEmployeeId is set
-      if (filteredEmployeeId !== null && event.employeeId !== filteredEmployeeId) {
+      // Filter by employee if filteredEmployeeIds is set
+      if (filteredEmployeeIds.length > 0 && !filteredEmployeeIds.includes(event.employeeId)) {
         return false;
       }
 
@@ -445,10 +446,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-900 dark:text-white leading-none mt-0.5">
                   {MONTHS[month]} {year}
                 </h2>
-                {filteredEmployeeId && (
-                  <div className="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/50 border border-blue-400 dark:border-blue-600 rounded px-2 py-0.5 ml-1">
-                    <span className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300 font-medium">
-                      กรอง: {getEmployeeName(filteredEmployeeId)}
+                {filteredEmployeeIds && filteredEmployeeIds.length > 0 && (
+                  <div className="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/50 border border-blue-400 dark:border-blue-600 rounded px-2 py-0.5 ml-1 max-w-[150px] sm:max-w-xs md:max-w-sm" title={filteredEmployeeIds.map(id => getEmployeeName(id)).join(', ')}>
+                    <span className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300 font-medium truncate overflow-hidden">
+                      กรอง: {filteredEmployeeIds.map(id => getEmployeeName(id)).join(', ')}
                     </span>
                   </div>
                 )}
@@ -755,7 +756,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                               if (!selectingEndDateFor) handleMouseUp();
                             }}
                           >
-                            <div className={`text-xs font-medium mb-1 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
+                            <div className={`min-h-[20px] sm:min-h-[24px] text-xs font-medium mb-1 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
                               <div className="flex items-center gap-1">
                                 <span className={isTodayDate && !isOtherMonth ? "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full bg-blue-600 text-white shadow-sm -ml-0.5" : ""}>
                                   {moment(date).date()}{thaiHoliday ? '*' : ''}

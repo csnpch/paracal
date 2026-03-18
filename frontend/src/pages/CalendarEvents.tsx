@@ -26,7 +26,7 @@ const CalendarEvents = () => {
   const [editingCompanyHoliday, setEditingCompanyHoliday] = useState<{ id: number; name: string; description?: string } | null>(null);
   const [highlightedDates, setHighlightedDates] = useState<string[]>([]);
   const [currentHoverEvent, setCurrentHoverEvent] = useState<{ startDate: string; endDate: string } | null>(null);
-  const [filteredEmployeeId, setFilteredEmployeeId] = useState<number | null>(null);
+  const [filteredEmployeeIds, setFilteredEmployeeIds] = useState<number[]>([]);
 
   const {
     employees,
@@ -254,12 +254,12 @@ const CalendarEvents = () => {
   };
 
   const handleEmployeeFilter = (employeeId: number) => {
-    // Toggle filter - if same employee clicked, clear filter
-    if (filteredEmployeeId === employeeId) {
-      setFilteredEmployeeId(null);
-    } else {
-      setFilteredEmployeeId(employeeId);
-    }
+    // Toggle filter - if same employee clicked, remove from array
+    setFilteredEmployeeIds(prev => 
+      prev.includes(employeeId) 
+        ? prev.filter(id => id !== employeeId)
+        : [...prev, employeeId]
+    );
   };
 
   const handleEditCompanyHoliday = (holiday: { id: number; name: string; description?: string }) => {
@@ -357,7 +357,7 @@ const CalendarEvents = () => {
                     employees={employees}
                     companyHolidays={companyHolidays}
                     highlightedDates={highlightedDates}
-                    filteredEmployeeId={filteredEmployeeId}
+                    filteredEmployeeIds={filteredEmployeeIds}
                     onViewModeChange={(mode) => {
                       setViewMode(mode);
                       let newDate;
@@ -386,7 +386,7 @@ const CalendarEvents = () => {
               <UpcomingEvents
                 events={events}
                 employees={employees}
-                filteredEmployeeId={filteredEmployeeId}
+                filteredEmployeeIds={filteredEmployeeIds}
                 onNavigateToMonth={handleNavigateToMonth}
                 onEventHover={handleEventHover}
                 onEventHoverEnd={handleEventHoverEnd}

@@ -6,7 +6,7 @@ import 'moment/locale/th';
 interface UpcomingEventsProps {
   events: Event[];
   employees: Employee[];
-  filteredEmployeeId?: number | null;
+  filteredEmployeeIds?: number[];
   onNavigateToMonth?: (year: number, month: number) => void;
   onEventHover?: (startDate: string, endDate: string) => void;
   onEventHoverEnd?: () => void;
@@ -37,7 +37,7 @@ const EventListHeader: React.FC<{ count?: number }> = ({ count }) => (
   </div>
 );
 
-const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filteredEmployeeId, onNavigateToMonth, onEventHover, onEventHoverEnd, onEmployeeFilter }) => {
+const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filteredEmployeeIds = [], onNavigateToMonth, onEventHover, onEventHoverEnd, onEmployeeFilter }) => {
   moment.locale('th');
 
   // กรองเหตุการณ์ที่จะเกิดขึ้นในอนาคต
@@ -119,7 +119,7 @@ const UpcomingEvents: React.FC<UpcomingEventsProps> = ({ events, employees, filt
             const endDate = event.endDate || event.date;
             const isMultiDay = startDate !== endDate;
 
-            const isFiltered = filteredEmployeeId === event.employeeId;
+            const isFiltered = filteredEmployeeIds.includes(event.employeeId);
 
             const handleClick = () => {
               if (onEmployeeFilter) {
