@@ -130,9 +130,9 @@ export const EventModal: React.FC<EventModalProps> = ({
     if (!selectedEmployeeId || !leaveType) return;
     if (!Array.isArray(employees)) return;
 
-    // Validate custom dates if they're being used
-    if (useCustomDates && (!customStartDate || !customEndDate)) {
-      alert('กรุณาเลือกวันที่เริ่มต้นและสิ้นสุด');
+    // Validate custom dates only when advanced panel is open and in use
+    if (useCustomDates && showAdvanced && !customStartDate) {
+      alert('กรุณาเลือกวันที่เริ่มต้น');
       return;
     }
 

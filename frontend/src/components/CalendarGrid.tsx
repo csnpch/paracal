@@ -1061,6 +1061,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           const colorClass = LEAVE_TYPE_COLORS_SOLID[event.leaveType as keyof typeof LEAVE_TYPE_COLORS_SOLID] || LEAVE_TYPE_COLORS_SOLID.other;
                           const label = LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
 
+                          const isStart = moment(date).isSame(event.startDate, 'day');
+                          const isEnd = moment(date).isSame(event.endDate, 'day');
+                          const dayIsMorning = (event.leaveDuration === 'morning' && isEnd) || ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && isEnd);
+                          const dayIsAfternoon = (event.leaveDuration === 'afternoon' && isStart) || ((event.leaveDuration === 'afternoon_full' || event.leaveDuration === 'afternoon_morning') && isStart);
+                          const durationLabel = dayIsMorning && dayIsAfternoon ? '🌤️🌥️ ครึ่งเช้า-บ่าย' : dayIsMorning ? '🌤️ ครึ่งเช้า' : dayIsAfternoon ? '🌥️ ครึ่งบ่าย' : null;
+
                           return (
                             <div
                               key={event.id}
@@ -1071,7 +1077,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                               <div className="pl-1.5 flex-1 flex flex-col justify-center">
                                 <div className="flex justify-between items-center gap-2">
                                   <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">{employeeName}</p>
-                                  <span className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap font-medium ${colorClass}`}>{label}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                    {durationLabel && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap font-medium bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700">
+                                        {durationLabel}
+                                      </span>
+                                    )}
+                                    <span className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap font-medium ${colorClass}`}>{label}</span>
+                                  </div>
                                 </div>
                                 {event.description && (
                                   <div className="mt-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg border border-gray-100 dark:border-gray-800 leading-relaxed">
