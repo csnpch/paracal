@@ -5,6 +5,7 @@ import { X, Calendar, User, FileText, MessageSquare, Plus, Edit, Trash2 } from '
 import { Button } from '@/components/ui/button';
 import { Event } from '@/services/apiDatabase';
 import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS, formatDate } from '@/lib/utils';
+import moment from 'moment';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface EventDetailsModalProps {
@@ -139,7 +140,14 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               )}
 
               {/* Employee Events */}
-              {events.map((event) => (
+              {events.map((event) => {
+                const isStart = selectedDate ? moment(selectedDate).isSame(event.startDate, 'day') : false;
+                const isEnd = selectedDate ? moment(selectedDate).isSame(event.endDate, 'day') : false;
+                const dayIsMorning = (event.leaveDuration === 'morning' && isEnd) || ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && isEnd);
+                const dayIsAfternoon = (event.leaveDuration === 'afternoon' && isStart) || ((event.leaveDuration === 'afternoon_full' || event.leaveDuration === 'afternoon_morning') && isStart);
+                const durationLabel = dayIsMorning && dayIsAfternoon ? '🌤️🌥️ ครึ่งเช้า-บ่าย' : dayIsMorning ? '🌤️ ครึ่งเช้า' : dayIsAfternoon ? '🌥️ ครึ่งบ่าย' : null;
+
+                return (
                 <div
                   key={event.id}
                   className="p-3 rounded-lg border-l-4 transition-all hover:shadow-sm bg-gray-50 dark:bg-gray-700"
@@ -155,6 +163,11 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                       <div className="flex items-center space-x-2 mb-1">
                         <FileText className="w-3 h-3 flex-shrink-0" />
                         <span className="text-xs">{LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS]}</span>
+                        {durationLabel && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap">
+                            {durationLabel}
+                          </span>
+                        )}
                       </div>
 
                       {event.description && (
@@ -189,7 +202,8 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-4 sm:py-6 md:py-8 text-gray-500 dark:text-gray-400">

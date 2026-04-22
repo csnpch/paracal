@@ -9,6 +9,8 @@ import { useCompanyHolidays } from '@/hooks/useCompanyHolidays';
 import { Event } from '@/services/apiDatabase';
 import { Layout } from '@/components/Layout';
 import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHolidayService';
+import { toast } from '@/hooks/use-toast';
+import { LEAVE_TYPE_LABELS } from '@/lib/utils';
 import moment from 'moment';
 
 export type ViewMode = 'month' | 'week' | 'day';
@@ -126,8 +128,10 @@ const CalendarEvents = () => {
     if (window.confirm('คุณต้องการลบเหตุการณ์นี้หรือไม่?')) {
       try {
         await deleteEvent(eventId);
+        toast({ title: 'ลบเหตุการณ์เรียบร้อย', description: 'ลบเหตุการณ์ออกจากระบบแล้ว' });
       } catch (error) {
         console.error('Failed to delete event:', error);
+        toast({ title: 'เกิดข้อผิดพลาด', description: 'ไม่สามารถลบเหตุการณ์ได้', variant: 'destructive' });
       }
     }
   };
@@ -141,6 +145,16 @@ const CalendarEvents = () => {
     endDate: string;
     description?: string;
   }) => {
+    const leaveLabel = LEAVE_TYPE_LABELS[eventData.leaveType as keyof typeof LEAVE_TYPE_LABELS] || eventData.leaveType;
+    const durationMap: Record<string, string> = {
+      morning: ' (ครึ่งเช้า)',
+      afternoon: ' (ครึ่งบ่าย)',
+      afternoon_full: ' (บ่ายวันเริ่ม)',
+      full_morning: ' (เช้าวันสิ้นสุด)',
+      afternoon_morning: ' (บ่ายวันเริ่ม-เช้าวันสิ้นสุด)',
+    };
+    const durationSuffix = eventData.leaveDuration ? (durationMap[eventData.leaveDuration] || '') : '';
+
     try {
       if (editingEvent) {
         await updateEvent(editingEvent.id, {
@@ -150,6 +164,10 @@ const CalendarEvents = () => {
           startDate: eventData.startDate,
           endDate: eventData.endDate,
           description: eventData.description
+        });
+        toast({
+          title: 'อัพเดทเหตุการณ์เรียบร้อย',
+          description: `${eventData.employeeName} — ${leaveLabel}${durationSuffix}`,
         });
       } else {
         await addEvent({
@@ -161,6 +179,10 @@ const CalendarEvents = () => {
           endDate: eventData.endDate,
           description: eventData.description
         });
+        toast({
+          title: 'บันทึกเหตุการณ์เรียบร้อย',
+          description: `${eventData.employeeName} — ${leaveLabel}${durationSuffix}`,
+        });
       }
 
       setEditingEvent(null);
@@ -168,6 +190,7 @@ const CalendarEvents = () => {
       setIsModalOpen(false);
     } catch (err) {
       console.error('Failed to save event:', err);
+      toast({ title: 'เกิดข้อผิดพลาด', description: 'ไม่สามารถบันทึกเหตุการณ์ได้', variant: 'destructive' });
     }
   };
 
