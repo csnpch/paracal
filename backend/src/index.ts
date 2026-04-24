@@ -83,6 +83,15 @@ async function startServer() {
         Logger.info(`[Logs] Auto-purged ${result.deletedCount} log(s) older than 10 days`);
       },
     }))
+    .use(cron({
+      name: 'daily-server-restart',
+      pattern: '0 8 * * *',
+      timezone: 'Asia/Bangkok',
+      run() {
+        Logger.info('[Cron] Daily restart at 08:00 — Railway will restart automatically');
+        process.exit(0);
+      },
+    }))
     .get('/', () => ({ message: 'Paracal API is running!' }))
     .get('/health', () => ({
       status: 'ok',
@@ -102,6 +111,7 @@ async function startServer() {
   Logger.info('⏰ Cron scheduler initialized with dynamic notification checking every minute');
   Logger.info('🔄 Auto-merge consecutive events job scheduled to run daily at 03:30 AM');
   Logger.info('🗑️  Auto-purge old activity logs job scheduled to run daily at 02:00 AM');
+  Logger.info('🔁 Daily server restart scheduled at 08:00 AM (Asia/Bangkok)');
 
   return app;
 }
