@@ -261,6 +261,7 @@ export class NotificationService {
       Logger.debug(`Sending notification to: ${webhookUrl}`);
       const response = await axios.post(webhookUrl, payload, {
         headers: { 'Content-Type': 'application/json' },
+        timeout: 15000,
       });
 
       const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);

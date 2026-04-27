@@ -196,6 +196,11 @@ export class CronjobService {
     const currentDate = now.format('YYYY-MM-DD');
     const currentKey = `${currentDate}-${currentTime}`;
 
+    // Drop dedupe entries from previous days so the Map stays bounded.
+    for (const [id, key] of this.lastExecutionTimes) {
+      if (!key.startsWith(currentDate)) this.lastExecutionTimes.delete(id);
+    }
+
     if (await this.shouldSkipToday(currentDate)) {
       Logger.debug(`Skipping ${currentDate} (company holiday or weekend)`);
       return;

@@ -29,33 +29,38 @@ const format = winston.format.combine(
   ),
 );
 
-// Define transports
-const transports = [
-  // Console transport
-  new winston.transports.Console({
-    format: format,
-  }),
-  // File transport for errors
-  new winston.transports.File({
-    filename: 'logs/error.log',
-    level: 'error',
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    ),
-  }),
-  // File transport for all logs
-  new winston.transports.File({
-    filename: 'logs/all.log',
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    ),
-  }),
+const isProduction = process.env.NODE_ENV === 'production';
+
+// In production (Railway), only log to stdout — Railway's log viewer captures it.
+// File transports on ephemeral disks grow unbounded and eventually block writes,
+// causing the server to hang.
+const transports: winston.transport[] = [
+  new winston.transports.Console({ format }),
 ];
 
-// Determine log level based on environment
-const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+if (!isProduction) {
+  const fileFormat = winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  );
+  const rotation = { maxsize: 5 * 1024 * 1024, maxFiles: 3, tailable: true };
+
+  transports.push(
+    new winston.transports.File({
+      filename: 'logs/error.log',
+      level: 'error',
+      format: fileFormat,
+      ...rotation,
+    }),
+    new winston.transports.File({
+      filename: 'logs/all.log',
+      format: fileFormat,
+      ...rotation,
+    })
+  );
+}
+
+const logLevel = isProduction ? 'info' : 'debug';
 
 // Create logger
 const Logger = winston.createLogger({
