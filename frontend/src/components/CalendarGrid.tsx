@@ -408,6 +408,50 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     return { hasPrevious, hasNext };
   };
 
+  const renderEventChip = (event: Event, eventIndex: number, date: Date) => {
+    const employeeName = getEmployeeName(event.employeeId);
+    const { hasPrevious, hasNext } = getEventContinuity(event, date);
+
+    let borderRadius = 'rounded';
+    if (hasPrevious && hasNext) borderRadius = 'rounded-none';
+    else if (hasPrevious && !hasNext) borderRadius = 'rounded-l-none rounded-r';
+    else if (!hasPrevious && hasNext) borderRadius = 'rounded-l rounded-r-none';
+
+    const typeLabel = LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
+    const isStart = moment(date).isSame(event.startDate, 'day');
+    const isEnd = moment(date).isSame(event.endDate, 'day');
+    const dayIsMorning = (event.leaveDuration === 'morning' && isEnd) || ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && isEnd);
+    const dayIsAfternoon = (event.leaveDuration === 'afternoon' && isStart) || ((event.leaveDuration === 'afternoon_full' || event.leaveDuration === 'afternoon_morning') && isStart);
+
+    let displayText = employeeName;
+    if (dayIsMorning && dayIsAfternoon) displayText = `🌤️🌥️ ${employeeName} (${typeLabel})`;
+    else if (dayIsMorning) displayText = `🌤️ ${employeeName} (${typeLabel})`;
+    else if (dayIsAfternoon) displayText = `🌥️ ${employeeName} (${typeLabel})`;
+
+    const zIndex = hasPrevious || hasNext ? 10 + eventIndex : 1 + eventIndex;
+
+    return (
+      <div
+        key={event.id}
+        className={`
+          text-[10px] sm:text-xs py-0.5 ${borderRadius} border text-center font-normal leading-tight
+          ${LEAVE_TYPE_COLORS_SOLID[event.leaveType as keyof typeof LEAVE_TYPE_COLORS_SOLID] || LEAVE_TYPE_COLORS_SOLID.other}
+          ${hasPrevious ? 'border-l-0' : 'px-0.5 sm:px-1'}
+          ${hasNext ? 'border-r-0' : 'px-0.5 sm:px-1'}
+          ${hasPrevious ? '-ml-1 sm:-ml-2 pl-1 sm:pl-2' : ''}
+          ${hasNext ? '-mr-1 sm:-mr-2 pr-1 sm:pr-2' : ''}
+          relative overflow-hidden whitespace-nowrap text-[9px] sm:text-[10px] md:text-xs flex items-center gap-1
+        `}
+        style={{ zIndex }}
+        title={`${employeeName} - ${typeLabel}`}
+      >
+        <span className="truncate flex-1 text-left md:text-center text-ellipsis">
+          {displayText}
+        </span>
+      </div>
+    );
+  };
+
   const handleCreateEvent = () => {
     if (selectedDateRange.length > 1) {
       // Create event for date range
@@ -429,6 +473,57 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   }
 
   const allVisibleDays = weeks.flat();
+
+  // Stable lane assignment: each event keeps the same row across the visible range
+  // so multi-day events stay on one line and names align day-to-day.
+  const eventLanes = React.useMemo(() => {
+    const lanes = new Map<number, number>();
+    const dayLanes = new Map<string, Set<number>>();
+
+    // Collect unique events in visible range, preserving filter rules
+    const seen = new Set<number>();
+    const visibleEvents: Event[] = [];
+    for (const date of allVisibleDays) {
+      for (const e of getEventsForDate(date)) {
+        if (!seen.has(e.id)) {
+          seen.add(e.id);
+          visibleEvents.push(e);
+        }
+      }
+    }
+
+    // Sort: earliest start first, then longest first — so anchor events grab lower lanes
+    visibleEvents.sort((a, b) => {
+      const aStart = a.startDate || a.date;
+      const bStart = b.startDate || b.date;
+      if (aStart !== bStart) return aStart < bStart ? -1 : 1;
+      const aDur = moment(a.endDate || a.date).diff(moment(a.startDate || a.date), 'days');
+      const bDur = moment(b.endDate || b.date).diff(moment(b.startDate || b.date), 'days');
+      if (aDur !== bDur) return bDur - aDur;
+      return a.employeeId - b.employeeId;
+    });
+
+    for (const event of visibleEvents) {
+      const start = event.startDate || event.date;
+      const end = event.endDate || event.date;
+      const spanned: string[] = [];
+      for (const d of allVisibleDays) {
+        const ds = moment(d).format('YYYY-MM-DD');
+        if (ds >= start && ds <= end) spanned.push(ds);
+      }
+      if (spanned.length === 0) continue;
+
+      let lane = 0;
+      while (spanned.some(ds => dayLanes.get(ds)?.has(lane))) lane++;
+      lanes.set(event.id, lane);
+      for (const ds of spanned) {
+        if (!dayLanes.has(ds)) dayLanes.set(ds, new Set());
+        dayLanes.get(ds)!.add(lane);
+      }
+    }
+    return lanes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, filteredEmployeeIds, moment(startDate).format('YYYY-MM-DD'), moment(endDate).format('YYYY-MM-DD'), viewMode]);
 
   const gridColsClass = showWeekends ? 'grid-cols-7' : 'grid-cols-5';
   const visibleDaysOfWeek = showWeekends ? DAYS_OF_WEEK : DAYS_OF_WEEK.filter((_, i) => i !== 0 && i !== 6);
@@ -775,76 +870,50 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             </div>
 
                             {/* Only show events if it's not a weekend and not a company holiday */}
-                            {!weekend && !companyHoliday && (
-                              <div className={`space-y-0.5 ${isOtherMonth ? 'opacity-40' : ''}`}>
-                                {dayEvents.slice(0, maxVisibleEvents).map((event, eventIndex) => {
-                                  const employeeName = getEmployeeName(event.employeeId);
-                                  const { hasPrevious, hasNext } = getEventContinuity(event, date);
+                            {!weekend && !companyHoliday && (() => {
+                              // Build lane-indexed slots so events keep the same row across days
+                              const laneSlots: (Event | null)[] = Array(maxVisibleEvents).fill(null);
+                              let overflowCount = 0;
+                              for (const event of dayEvents) {
+                                const lane = eventLanes.get(event.id) ?? 0;
+                                if (lane < maxVisibleEvents) {
+                                  laneSlots[lane] = event;
+                                } else {
+                                  overflowCount++;
+                                }
+                              }
+                              // Trim trailing empty lanes only if no overflow indicator follows,
+                              // so we don't render filler rows below the last real event.
+                              let lastUsed = -1;
+                              for (let i = 0; i < laneSlots.length; i++) {
+                                if (laneSlots[i]) lastUsed = i;
+                              }
+                              const renderedSlots = laneSlots.slice(0, lastUsed + 1);
 
-                                  // Determine border radius based on continuity
-                                  let borderRadius = 'rounded';
-                                  if (hasPrevious && hasNext) {
-                                    borderRadius = 'rounded-none';
-                                  } else if (hasPrevious && !hasNext) {
-                                    borderRadius = 'rounded-l-none rounded-r';
-                                  } else if (!hasPrevious && hasNext) {
-                                    borderRadius = 'rounded-l rounded-r-none';
-                                  }
-
-                                  // Display text formatting - add dashes for middle days, and add morning/afternoon suffix
-                                  let displayText = employeeName;
-                                  const typeLabel = LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
-
-                                  const isStart = moment(date).isSame(event.startDate, 'day');
-                                  const isEnd = moment(date).isSame(event.endDate, 'day');
-
-                                  const dayIsMorning = (event.leaveDuration === 'morning' && isEnd) || ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && isEnd);
-                                  const dayIsAfternoon = (event.leaveDuration === 'afternoon' && isStart) || ((event.leaveDuration === 'afternoon_full' || event.leaveDuration === 'afternoon_morning') && isStart);
-
-                                  if (dayIsMorning && dayIsAfternoon) {
-                                    // For single day afternoon-morning? Not standard, but just in case
-                                    displayText = `🌤️🌥️ ${employeeName} (${typeLabel})`;
-                                  } else if (dayIsMorning) {
-                                    displayText = `🌤️ ${employeeName} (${typeLabel})`;
-                                  } else if (dayIsAfternoon) {
-                                    displayText = `🌥️ ${employeeName} (${typeLabel})`;
-                                  } else {
-                                    displayText = employeeName;
-                                  }
-
-                                  // Z-index based on sorted position to ensure proper layering
-                                  // Events that appear first in sorted order get lower z-index (appear below)
-                                  const zIndex = hasPrevious || hasNext ? 10 + eventIndex : 1 + eventIndex;
-
-                                  return (
-                                    <div
-                                      key={event.id}
-                                      className={`
-                                    text-[10px] sm:text-xs py-0.5 ${borderRadius} border text-center font-normal leading-tight
-                                    ${LEAVE_TYPE_COLORS_SOLID[event.leaveType as keyof typeof LEAVE_TYPE_COLORS_SOLID] || LEAVE_TYPE_COLORS_SOLID.other}
-                                    ${hasPrevious ? 'border-l-0' : 'px-0.5 sm:px-1'}
-                                    ${hasNext ? 'border-r-0' : 'px-0.5 sm:px-1'}
-                                    ${hasPrevious ? '-ml-1 sm:-ml-2 pl-1 sm:pl-2' : ''}
-                                    ${hasNext ? '-mr-1 sm:-mr-2 pr-1 sm:pr-2' : ''}
-                                    relative overflow-hidden whitespace-nowrap text-[9px] sm:text-[10px] md:text-xs flex items-center gap-1
-                                    `}
-                                      style={{ zIndex }}
-                                      title={`${employeeName} - ${LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType}`}
-                                    >
-                                      <span className="truncate flex-1 text-left md:text-center text-ellipsis">
-                                        {displayText}
-                                      </span>
+                              return (
+                                <div className={`space-y-0.5 ${isOtherMonth ? 'opacity-40' : ''}`}>
+                                  {renderedSlots.map((event, eventIndex) => {
+                                    if (!event) {
+                                      return (
+                                        <div
+                                          key={`empty-${eventIndex}`}
+                                          aria-hidden="true"
+                                          className="text-[9px] sm:text-[10px] md:text-xs py-0.5 border border-transparent leading-tight invisible select-none"
+                                        >
+                                          &nbsp;
+                                        </div>
+                                      );
+                                    }
+                                    return renderEventChip(event, eventIndex, date);
+                                  })}
+                                  {overflowCount > 0 && (
+                                    <div className="text-[10px] sm:text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-center font-medium rounded-sm py-0.5 opacity-90 truncate">
+                                      +{overflowCount}
                                     </div>
-                                  );
-                                })}
-                                {dayEvents.length > maxVisibleEvents && (
-                                  <div className="text-[10px] sm:text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-center font-medium rounded-sm py-0.5 opacity-90 truncate">
-                                    +{dayEvents.length - maxVisibleEvents}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {/* Show holidays after events (lower priority) */}
                             {companyHoliday && (
                               <div className={`text-xs bg-red-200 dark:bg-red-600 text-black dark:text-red-100 px-1 py-0.5 rounded mb-0.5 font-normal leading-tight cursor-pointer ${isOtherMonth ? 'opacity-40' : ''}`}>
