@@ -1,9 +1,8 @@
 import { getPrisma } from "../database/connection";
 import { EventService } from "./eventService";
-import type { Event } from "../types";
+import type { Event, LeaveDuration } from "../../../shared/types";
 import moment from "moment";
 import Logger from "../utils/logger";
-import { CompanyHolidayService } from "./companyHolidayService";
 
 interface EventGroup {
   employeeId: number;
@@ -20,131 +19,153 @@ interface MergeResult {
   error?: string;
 }
 
+// How far back/forward to scan for mergeable events. Bounds DB load to avoid
+// loading the whole events table into memory on each cron tick.
+const SCAN_PAST_DAYS = 365;
+const SCAN_FUTURE_DAYS = 90;
+
 export class EventMergeService {
   private get prisma() { return getPrisma(); }
   private eventService = new EventService();
-  private companyHolidayService = new CompanyHolidayService();
 
-  /**
-   * Check if a given date is a holiday (weekend or company holiday)
-   */
-  private async isHoliday(date: string): Promise<boolean> {
-    const momentDate = moment(date);
-    const dayOfWeek = momentDate.day();
+  private canStartChain(d: LeaveDuration | undefined): boolean {
+    return d === "full" || d === "afternoon" || d === undefined;
+  }
 
-    // Check weekend (Saturday=6, Sunday=0)
-    if (dayOfWeek === 0 || dayOfWeek === 6) return true;
+  private canEndChain(d: LeaveDuration | undefined): boolean {
+    return d === "full" || d === "morning" || d === undefined;
+  }
 
-    // Check company holiday
-    return await this.companyHolidayService.isCompanyHoliday(date);
+  private isExtendableMiddle(d: LeaveDuration | undefined): boolean {
+    return d === "full" || d === undefined;
+  }
+
+  private resolveRangeDuration(first: LeaveDuration | undefined, last: LeaveDuration | undefined): LeaveDuration {
+    const startsHalf = first === "afternoon";
+    const endsHalf = last === "morning";
+    if (startsHalf && endsHalf) return "afternoon_morning";
+    if (startsHalf) return "afternoon_full";
+    if (endsHalf) return "full_morning";
+    return "full";
+  }
+
+  private buildRangeDescription(startDate: string, endDate: string, sourceDescriptions: string[]): string {
+    const startFmt = moment(startDate).format("DD/MM/YYYY");
+    const endFmt = moment(endDate).format("DD/MM/YYYY");
+    const prefix = `ช่วงวันที่: ${startFmt} - ${endFmt}`;
+    const note = sourceDescriptions
+      .map((d) => d.trim())
+      .filter((d) => d.length > 0 && !d.startsWith("ช่วงวันที่:"))
+      .find(Boolean);
+    return note ? `${prefix} - ${note}` : prefix;
   }
 
   /**
-   * Count working days between two dates (excluding the dates themselves)
-   */
-  private async countWorkingDaysBetween(startDate: string, endDate: string): Promise<number> {
-    const start = moment(startDate);
-    const end = moment(endDate);
-
-    let workingDays = 0;
-    const current = start.clone().add(1, "day");
-
-    while (current.isBefore(end)) {
-      const dateStr = current.format("YYYY-MM-DD");
-      if (!(await this.isHoliday(dateStr))) {
-        workingDays++;
-      }
-      current.add(1, "day");
-    }
-
-    return workingDays;
-  }
-
-  /**
-   * Find all single-day events and group them
+   * Find all single-day events and group consecutive ones.
+   * Honors leaveDuration so half-days don't merge across a day the user worked.
    */
   async findConsecutiveEvents(): Promise<EventGroup[]> {
-    const singleDayEvents = await this.prisma.event.findMany({
+    const today = moment().utcOffset("+07:00");
+    const fromDate = today.clone().subtract(SCAN_PAST_DAYS, "days").format("YYYY-MM-DD");
+    const toDate = today.clone().add(SCAN_FUTURE_DAYS, "days").format("YYYY-MM-DD");
+
+    // The legacy `date` field is set iff startDate === endDate (eventService.computeLegacyDate).
+    // Filtering on it lets Prisma return only single-day events.
+    const rows = await this.prisma.event.findMany({
       where: {
-        startDate: { not: null },
-        endDate: { not: null },
+        date: { not: null, gte: fromDate, lte: toDate },
       },
-      orderBy: [{ employeeId: 'asc' }, { leaveType: 'asc' }, { startDate: 'asc' }],
+      orderBy: [{ employeeId: "asc" }, { leaveType: "asc" }, { startDate: "asc" }],
     });
 
-    // Filter single-day events in JS (startDate === endDate)
-    const filtered = singleDayEvents
-      .filter((e) => e.startDate === e.endDate)
-      .map((row): Event => ({
-        id: row.id,
-        employeeId: row.employeeId,
-        employeeName: row.employeeName,
-        leaveType: row.leaveType as import('../types').LeaveType,
-        date: row.date ?? undefined,
-        startDate: row.startDate!,
-        endDate: row.endDate!,
-        description: row.description ?? undefined,
-        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-        updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
-      }));
+    if (rows.length === 0) return [];
 
-    if (filtered.length === 0) return [];
+    // Pre-load company holidays once into a Set instead of querying per-day.
+    const holidayRows = await this.prisma.companyHoliday.findMany({
+      where: { date: { gte: fromDate, lte: toDate } },
+      select: { date: true },
+    });
+    const holidaySet = new Set(holidayRows.map((h) => h.date));
 
-    // Group by employeeId + leaveType
+    const isHoliday = (date: string): boolean => {
+      const day = moment(date).day();
+      if (day === 0 || day === 6) return true;
+      return holidaySet.has(date);
+    };
+
+    const workingDaysBetween = (a: string, b: string): number => {
+      let count = 0;
+      const cur = moment(a).add(1, "day");
+      const end = moment(b);
+      while (cur.isBefore(end)) {
+        if (!isHoliday(cur.format("YYYY-MM-DD"))) count++;
+        cur.add(1, "day");
+      }
+      return count;
+    };
+
+    const events: Event[] = rows.map((row) => ({
+      id: row.id,
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      leaveType: row.leaveType as Event["leaveType"],
+      leaveDuration: (row.leaveDuration ?? undefined) as LeaveDuration | undefined,
+      date: row.date ?? undefined,
+      startDate: row.startDate!,
+      endDate: row.endDate!,
+      description: row.description ?? undefined,
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
+    }));
+
     const grouped = new Map<string, Event[]>();
-    for (const event of filtered) {
-      const key = `${event.employeeId}-${event.leaveType}`;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(event);
+    for (const e of events) {
+      const key = `${e.employeeId}-${e.leaveType}`;
+      let list = grouped.get(key);
+      if (!list) { list = []; grouped.set(key, list); }
+      list.push(e);
     }
 
-    // Find consecutive sequences within each group
     const consecutiveGroups: EventGroup[] = [];
 
-    for (const [key, events] of grouped.entries()) {
-      if (events.length < 2) continue;
+    for (const list of grouped.values()) {
+      if (list.length < 2) continue;
 
-      const firstEvent = events[0];
-      if (!firstEvent) continue;
+      let chain: Event[] = [];
 
-      let currentGroup: Event[] = [firstEvent];
-
-      for (let i = 1; i < events.length; i++) {
-        const prevEvent = events[i - 1];
-        const currEvent = events[i];
-        if (!prevEvent || !currEvent) continue;
-
-        const workingDaysBetween = await this.countWorkingDaysBetween(prevEvent.startDate, currEvent.startDate);
-
-        if (workingDaysBetween === 0) {
-          currentGroup.push(currEvent);
-        } else {
-          if (currentGroup.length >= 2) {
-            const groupFirst = currentGroup[0];
-            if (groupFirst) {
-              consecutiveGroups.push({
-                employeeId: groupFirst.employeeId,
-                employeeName: groupFirst.employeeName,
-                leaveType: groupFirst.leaveType,
-                events: [...currentGroup],
-              });
-            }
+      const finalize = () => {
+        if (chain.length >= 2) {
+          const last = chain[chain.length - 1]!;
+          if (this.canEndChain(last.leaveDuration)) {
+            const head = chain[0]!;
+            consecutiveGroups.push({
+              employeeId: head.employeeId,
+              employeeName: head.employeeName,
+              leaveType: head.leaveType,
+              events: chain,
+            });
           }
-          currentGroup = [currEvent];
         }
-      }
+        chain = [];
+      };
 
-      if (currentGroup.length >= 2) {
-        const groupFirst = currentGroup[0];
-        if (groupFirst) {
-          consecutiveGroups.push({
-            employeeId: groupFirst.employeeId,
-            employeeName: groupFirst.employeeName,
-            leaveType: groupFirst.leaveType,
-            events: [...currentGroup],
-          });
+      for (const ev of list) {
+        if (chain.length === 0) {
+          if (this.canStartChain(ev.leaveDuration)) chain = [ev];
+          continue;
+        }
+        const prev = chain[chain.length - 1]!;
+        const continuous = workingDaysBetween(prev.startDate, ev.startDate) === 0;
+        const prevExtendable = this.isExtendableMiddle(prev.leaveDuration) || (chain.length === 1 && this.canStartChain(prev.leaveDuration));
+        const currMergeable = this.isExtendableMiddle(ev.leaveDuration) || this.canEndChain(ev.leaveDuration);
+        if (continuous && prevExtendable && currMergeable) {
+          chain.push(ev);
+        } else {
+          finalize();
+          if (this.canStartChain(ev.leaveDuration)) chain = [ev];
         }
       }
+      finalize();
     }
 
     return consecutiveGroups;
@@ -156,13 +177,6 @@ export class EventMergeService {
   async mergeEventGroup(group: EventGroup): Promise<MergeResult> {
     const { employeeId, employeeName, leaveType, events } = group;
 
-    const allSameEmployee = events.every((e) => e.employeeId === employeeId);
-    const allSameType = events.every((e) => e.leaveType === leaveType);
-
-    if (!allSameEmployee || !allSameType) {
-      return { success: false, eventsCount: 0, startDate: "", endDate: "", error: "Events do not have matching employee or leave type" };
-    }
-
     const firstEvent = events[0];
     const lastEvent = events[events.length - 1];
     if (!firstEvent || !lastEvent) {
@@ -171,24 +185,30 @@ export class EventMergeService {
 
     const startDate = firstEvent.startDate;
     const endDate = lastEvent.startDate;
-    const description = events.find((e) => e.description)?.description || null;
+    const leaveDuration = this.resolveRangeDuration(firstEvent.leaveDuration, lastEvent.leaveDuration);
+    const description = this.buildRangeDescription(
+      startDate,
+      endDate,
+      events.map((e) => e.description ?? "")
+    );
 
     try {
       const newEvent = await this.eventService.createEvent({
         employeeId,
-        leaveType: leaveType as any,
+        leaveType: leaveType as Event["leaveType"],
+        leaveDuration,
         startDate,
         endDate,
-        description: description || undefined,
+        description,
       });
-
-      Logger.info(`[EventMerge] Created range event ${newEvent.id} for ${employeeName} (${leaveType}, ${startDate} to ${endDate})`);
 
       for (const event of events) {
         await this.eventService.deleteEvent(event.id);
       }
 
-      Logger.info(`[EventMerge] Deleted ${events.length} individual events for merge`);
+      Logger.info(
+        `[EventMerge] Merged ${events.length} events → ${newEvent.id} (${employeeName}, ${leaveType}/${leaveDuration}, ${startDate}→${endDate})`
+      );
 
       return { success: true, eventsCount: events.length, startDate, endDate };
     } catch (error) {

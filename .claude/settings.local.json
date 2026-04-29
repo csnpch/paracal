@@ -53,7 +53,8 @@
       "Bash(for:*)",
       "Bash(do echo \"Processing: $file\")",
       "Bash(done)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(bunx tsc *)"
     ],
     "deny": []
   }
