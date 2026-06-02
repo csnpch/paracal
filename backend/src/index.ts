@@ -89,7 +89,7 @@ async function startServer() {
       timezone: 'Asia/Bangkok',
       run() {
         Logger.info('[Cron] Daily restart at 08:00 — Railway will restart automatically');
-        process.exit(1);
+        process.exit(0);
       },
     }))
     .get('/', () => ({ message: 'Paracal API is running!' }))
@@ -119,3 +119,4 @@ async function startServer() {
 const app = startServer();
 
 export type App = Awaited<typeof app>;
+
