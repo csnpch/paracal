@@ -14,20 +14,44 @@ export type { Employee, Event, LeaveDuration } from '../../../shared/types';
 class ApiDatabaseService {
   // ── Auth operations ──────────────────────────────────────────
   
-  async loginWithPin(pin: string): Promise<boolean> {
+  async loginWithPin(pin: string): Promise<{ success: boolean; token?: string; message?: string }> {
     try {
-      const response = await apiClient.post<{ success: boolean; message?: string }>('/auth/login', { pin });
+      return await apiClient.post<{ success: boolean; token?: string; message?: string }>('/auth/login', { pin });
+    } catch {
+      return { success: false };
+    }
+  }
+
+  async verifyAdminSession(): Promise<boolean> {
+    try {
+      const response = await apiClient.get<{ success: boolean }>('/auth/verify');
       return response.success;
     } catch {
       return false;
     }
   }
 
-  async changeAdminPin(oldPin: string, newPin: string): Promise<{ success: boolean; message?: string }> {
+  async logoutAdmin(): Promise<void> {
     try {
-      return await apiClient.post<{ success: boolean; message?: string }>('/auth/change-pin', { oldPin, newPin });
+      await apiClient.post<{ success: boolean }>('/auth/logout', {});
+    } catch {
+      // Ignore logout errors; clear local session regardless
+    }
+  }
+
+  async changeAdminPin(newPin: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      return await apiClient.post<{ success: boolean; message?: string }>('/auth/change-pin', { newPin });
     } catch (error: any) {
       return { success: false, message: error.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัส PIN' };
+    }
+  }
+
+  async resetAdminPin(pin: string): Promise<{ success: boolean; defaultPin?: string; message?: string }> {
+    try {
+      return await apiClient.post<{ success: boolean; defaultPin?: string; message?: string }>('/auth/reset-pin', { pin });
+    } catch (error: any) {
+      return { success: false, message: error.message || 'เกิดข้อผิดพลาดในการคืนค่ารหัส PIN' };
     }
   }
   // ── Employee operations ──────────────────────────────────────

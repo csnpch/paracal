@@ -4,14 +4,14 @@ import { createPortal } from 'react-dom';
 import { X, Calendar, User, FileText, MessageSquare, Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Event } from '@/services/apiDatabase';
-import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS, formatDate } from '@/lib/utils';
+import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
 import moment from 'moment';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface EventDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateEvent: () => void;
+  onCreateEvent?: () => void;
   onEditEvent?: (event: Event) => void;
   onDeleteEvent?: (eventId: number) => void;
   events: Event[];
@@ -38,7 +38,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const { isAdminAuthenticated } = useAuth();
 
   const handleCreateEvent = () => {
-    onCreateEvent();
+    onCreateEvent?.();
     onClose();
   };
 
@@ -178,28 +178,30 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                       )}
                     </div>
 
-                    <div className="flex space-x-1 ml-2">
-                      {onEditEvent && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onEditEvent(event)}
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-gray-200"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                      )}
-                      {onDeleteEvent && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDeleteEvent(event.id)}
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </div>
+                    {isAdminAuthenticated && (
+                      <div className="flex space-x-1 ml-2">
+                        {onEditEvent && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEditEvent(event)}
+                            className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-gray-200"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                        )}
+                        {onDeleteEvent && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDeleteEvent(event.id)}
+                            className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 );
@@ -214,15 +216,22 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-          <Button
-            onClick={handleCreateEvent}
-            className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-gray-700 dark:hover:bg-gray-800 text-white text-xs sm:text-sm h-8 sm:h-9"
-          >
-            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-            สร้างเหตุการณ์ใหม่
-          </Button>
-          <Button variant="outline" onClick={onClose} className="w-full text-xs sm:text-sm h-8 sm:h-9">
+        <div className={`p-3 sm:p-4 md:p-6 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 flex flex-col ${isAdminAuthenticated ? 'sm:flex-row sm:space-y-0 sm:space-x-3' : 'space-y-2'}`}>
+          {!isAdminAuthenticated && (
+            <p className="w-full text-sm text-gray-500 dark:text-gray-400 text-left leading-relaxed break-words">
+              {EVENT_CONTACT_ADMIN_MESSAGE}
+            </p>
+          )}
+          {isAdminAuthenticated && onCreateEvent && (
+            <Button
+              onClick={handleCreateEvent}
+              className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-gray-700 dark:hover:bg-gray-800 text-white text-xs sm:text-sm h-8 sm:h-9"
+            >
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              สร้างเหตุการณ์ใหม่
+            </Button>
+          )}
+          <Button variant="outline" onClick={onClose} className={`w-full text-xs sm:text-sm h-8 sm:h-9 ${isAdminAuthenticated ? '' : 'sm:w-auto sm:self-end sm:min-w-28'}`}>
             ปิด
           </Button>
         </div>

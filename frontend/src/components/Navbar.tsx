@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -6,6 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminLoginModal } from './AdminLoginModal';
 import { AdminChangePinModal } from './AdminChangePinModal';
+import { AdminResetPinModal } from './AdminResetPinModal';
 import {
   CalendarDays,
   Building2,
@@ -20,7 +21,8 @@ import {
   Calendar,
   FileText,
   KeyRound,
-  ClipboardList
+  ClipboardList,
+  RotateCcw,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -33,6 +35,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
   const { isAdminAuthenticated, logout } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
+  const [showResetPinModal, setShowResetPinModal] = useState(false);
+
+  useEffect(() => {
+    const handleOpenChangePinModal = () => {
+      setShowChangePinModal(true);
+    };
+
+    window.addEventListener('open-change-pin-modal', handleOpenChangePinModal as EventListener);
+    return () => {
+      window.removeEventListener('open-change-pin-modal', handleOpenChangePinModal as EventListener);
+    };
+  }, []);
 
   const isCurrentPage = (page: string) => currentPage === page;
 
@@ -158,6 +172,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
                         <KeyRound className="w-4 h-4 mr-2" />
                         เปลี่ยนรหัส PIN
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setShowResetPinModal(true)}
+                        className="px-4 py-3"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        คืนค่ารหัส PIN
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { logout(); navigate('/'); }} className="px-4 py-3 text-red-600">
                         <LogOut className="w-4 h-4 mr-2" />
                         Logout
@@ -198,6 +219,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
         key={showChangePinModal ? 'pin-open' : 'pin-closed'}
         isOpen={showChangePinModal}
         onClose={() => setShowChangePinModal(false)}
+      />
+
+      <AdminResetPinModal
+        key={showResetPinModal ? 'reset-pin-open' : 'reset-pin-closed'}
+        isOpen={showResetPinModal}
+        onClose={() => setShowResetPinModal(false)}
       />
     </div>
   );

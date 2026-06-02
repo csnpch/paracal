@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ToastAction } from '@/components/ui/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -17,22 +18,35 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const { login } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const enteredPin = pin;
 
-    const success = await login(pin);
+    const success = await login(enteredPin);
     if (success) {
       setPin('');
       setError('');
       onSuccess();
       onClose();
-      // Use setTimeout to ensure modal closes before navigation
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 100);
+      if (enteredPin === '000000') {
+        toast({
+          title: 'แนะนำให้เปลี่ยนรหัส PIN',
+          description: 'คุณกำลังใช้รหัสเริ่มต้น กรุณาเปลี่ยนรหัส PIN เพื่อความปลอดภัย',
+          duration: 7000,
+          action: (
+            <ToastAction
+              altText="Open change PIN modal"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('open-change-pin-modal'));
+              }}
+            >
+              เปลี่ยนตอนนี้
+            </ToastAction>
+          ),
+        });
+      }
     } else {
       setError('รหัส PIN ไม่ถูกต้อง');
       setPin('');

@@ -12,10 +12,12 @@ import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHo
 import { toast } from '@/hooks/use-toast';
 import { LEAVE_TYPE_LABELS } from '@/lib/utils';
 import moment from 'moment';
+import { useAuth } from '@/contexts/AuthContext';
 
 export type ViewMode = 'month' | 'week' | 'day';
 
 const CalendarEvents = () => {
+  const { isAdminAuthenticated } = useAuth();
   const [currentDate, setCurrentDate] = useState(moment().toDate());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -107,6 +109,8 @@ const CalendarEvents = () => {
   };
 
   const handleCreateEvent = (date: Date, dateRange?: Date[]) => {
+    if (!isAdminAuthenticated) return;
+
     setSelectedDate(date);
     setSelectedDateRange(dateRange || []);
     setIsModalOpen(true);
@@ -125,6 +129,8 @@ const CalendarEvents = () => {
   };
 
   const handleDeleteEvent = async (eventId: number) => {
+    if (!isAdminAuthenticated) return;
+
     if (window.confirm('คุณต้องการลบเหตุการณ์นี้หรือไม่?')) {
       try {
         await deleteEvent(eventId);
@@ -145,6 +151,8 @@ const CalendarEvents = () => {
     endDate: string;
     description?: string;
   }) => {
+    if (!isAdminAuthenticated) return;
+
     const leaveLabel = LEAVE_TYPE_LABELS[eventData.leaveType as keyof typeof LEAVE_TYPE_LABELS] || eventData.leaveType;
     const durationMap: Record<string, string> = {
       morning: ' (ครึ่งเช้า)',
@@ -440,15 +448,15 @@ const CalendarEvents = () => {
       <EventDetailsModal
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
-        onCreateEvent={handleCreateEventFromDetails}
-        onEditEvent={handleEditEvent}
-        onDeleteEvent={handleDeleteEvent}
+        onCreateEvent={isAdminAuthenticated ? handleCreateEventFromDetails : undefined}
+        onEditEvent={isAdminAuthenticated ? handleEditEvent : undefined}
+        onDeleteEvent={isAdminAuthenticated ? handleDeleteEvent : undefined}
         events={selectedDateEvents}
         employees={employees}
         selectedDate={selectedDate}
         companyHoliday={selectedDate ? isCompanyHoliday(selectedDate) : null}
-        onEditCompanyHoliday={handleEditCompanyHoliday}
-        onDeleteCompanyHoliday={handleDeleteCompanyHoliday}
+        onEditCompanyHoliday={isAdminAuthenticated ? handleEditCompanyHoliday : undefined}
+        onDeleteCompanyHoliday={isAdminAuthenticated ? handleDeleteCompanyHoliday : undefined}
       />
 
       {/* Company Holiday Modal */}

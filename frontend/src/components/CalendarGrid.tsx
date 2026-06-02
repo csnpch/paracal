@@ -5,9 +5,11 @@ import { CreateEventPopover } from '@/components/CreateEventPopover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useHolidays } from '@/hooks/useHolidays';
+import { useAuth } from '@/contexts/AuthContext';
 import { ViewMode } from '@/pages/CalendarEvents';
 import { Event } from '@/services/apiDatabase';
-import { DAYS_OF_WEEK, MONTHS, LEAVE_TYPE_COLORS_SOLID, LEAVE_TYPE_LABELS, formatDate } from '@/lib/utils';
+import { DAYS_OF_WEEK, MONTHS, LEAVE_TYPE_COLORS_SOLID, LEAVE_TYPE_LABELS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 import moment from 'moment';
 
 interface CalendarGridProps {
@@ -43,6 +45,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   onNextDate,
   onTodayClick
 }) => {
+  const { isAdminAuthenticated } = useAuth();
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [selectedPopoverDate, setSelectedPopoverDate] = useState<Date | null>(null);
   const [maxVisibleEvents, setMaxVisibleEvents] = useState(2);
@@ -231,7 +234,21 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
       return;
     }
 
-    // Normal Click Handling
+    const dayEvents = getEventsForDate(date);
+    const companyHoliday = isCompanyHoliday(date);
+    const thaiHoliday = isHoliday(date);
+
+    if (!isAdminAuthenticated) {
+      const hasContent = dayEvents.length > 0 || companyHoliday || thaiHoliday;
+      if (hasContent) {
+        onDateClick(date);
+      } else {
+        toast({ description: EVENT_CONTACT_ADMIN_MESSAGE });
+      }
+      return;
+    }
+
+    // Normal Click Handling (admin only)
     // If we have a date range selected (either valid dates or just hover range), create events for the range
     if (selectedDateRange.length > 1 || hoverDateRange.length > 1) {
       const popoverDate = selectedDateRange.length > 0 ? selectedDateRange[0] : hoverDateRange[0];
@@ -239,10 +256,6 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
       setPopoverOpen(true);
       return;
     }
-
-    const dayEvents = getEventsForDate(date);
-    const companyHoliday = isCompanyHoliday(date);
-    const thaiHoliday = isHoliday(date);
 
     if (dayEvents.length > 0 || companyHoliday || thaiHoliday) {
       onDateClick(date);
@@ -260,6 +273,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   };
 
   const handleMouseDown = (date: Date) => {
+    if (!isAdminAuthenticated) return;
     setIsDragging(true);
     setDragStartDate(date);
     setDragEndDate(date);
@@ -328,6 +342,11 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   };
 
   const handleMouseUp = () => {
+    if (!isAdminAuthenticated) {
+      setIsDragging(false);
+      return;
+    }
+
     if (isDragging && hoverDateRange.length > 1) {
       // Show popover for multi-day selection (use hoverDateRange to include all dragged dates)
       // Use the first valid date from selectedDateRange, or first date from hoverDateRange if no valid dates
@@ -622,7 +641,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         </div>
 
         {/* End Date Selection Banner */}
-        {selectingEndDateFor && (() => {
+        {isAdminAuthenticated && selectingEndDateFor && (() => {
           let validDays = 0;
           if (tempEndDateFor) {
             const current = moment(selectingEndDateFor).clone();
@@ -666,7 +685,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 >
                   ยกเลิก
                 </Button>
-                {tempEndDateFor && (
+                {isAdminAuthenticated && tempEndDateFor && (
                   <Button
                     size="sm"
                     className="h-7 sm:h-8 flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600 shadow-sm"
@@ -986,7 +1005,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           (isEmptyDate && popoverOpen && isThisDateSelected);
 
                         // Only render popover for the specific date that should show it
-                        const shouldUsePopover = isPopoverOpenForThisDate;
+                        const shouldUsePopover = isAdminAuthenticated && isPopoverOpenForThisDate;
 
 
                         return shouldUsePopover ? (
@@ -1069,17 +1088,19 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                       {dayBadge}
                     </div>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => { setSelectedPopoverDate(date); setPopoverOpen(true); }}
-                          className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>เพิ่มรายการบนวันนี้</TooltipContent>
-                    </Tooltip>
+                    {isAdminAuthenticated && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => { setSelectedPopoverDate(date); setPopoverOpen(true); }}
+                            className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>เพิ่มรายการบนวันนี้</TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 );
 
@@ -1090,7 +1111,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   >
                     <div className="h-full">
 
-                      {isPopoverOpenForThisDate ? (
+                      {isAdminAuthenticated && isPopoverOpenForThisDate ? (
                         <CreateEventPopover
                           isOpen={isPopoverOpenForThisDate}
                           showHolidayDialog={showHolidayDialog}
@@ -1166,7 +1187,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         })}
 
                         {dayEvents.length === 0 && !compHoliday && (
-                          <div className={`flex items-center justify-center gap-2 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 ${viewMode === 'day' ? 'p-3 sm:p-4 min-h-[60px]' : 'py-2 px-3'}`}>
+                          <div
+                            className={`flex items-center justify-center gap-2 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 ${viewMode === 'day' ? 'p-3 sm:p-4 min-h-[60px]' : 'py-2 px-3'} ${!isAdminAuthenticated ? 'cursor-pointer hover:bg-gray-100/80 dark:hover:bg-gray-700/40' : ''}`}
+                            onClick={() => {
+                              if (!isAdminAuthenticated) {
+                                toast({ description: EVENT_CONTACT_ADMIN_MESSAGE });
+                              }
+                            }}
+                          >
                             <p className="text-sm text-gray-400 dark:text-gray-500">ไม่มีรายการใดๆ</p>
                           </div>
                         )}

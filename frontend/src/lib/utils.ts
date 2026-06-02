@@ -19,6 +19,9 @@ export {
 
 export type { LeaveType } from '../../../shared/types';
 
+/** Shown to non-admin users when they try to add or edit calendar events */
+export const EVENT_CONTACT_ADMIN_MESSAGE = 'หากต้องการเพิ่มเหตุการณ์ กรุณาแจ้งพี่นัท';
+
 // ── Frontend-only utilities ──────────────────────────────────
 
 export function formatDate(date: Date | null): string {

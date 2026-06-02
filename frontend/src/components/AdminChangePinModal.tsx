@@ -13,7 +13,6 @@ interface AdminChangePinModalProps {
 }
 
 export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [oldPin, setOldPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
@@ -30,18 +29,17 @@ export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen
       return;
     }
 
-    if (newPin.length !== 6 || oldPin.length !== 6) {
+    if (newPin.length !== 6) {
       setError('รหัส PIN ต้องมี 6 หลัก');
       return;
     }
 
     setLoading(true);
     const apiDb = getApiDatabase();
-    const result = await apiDb.changeAdminPin(oldPin, newPin);
+    const result = await apiDb.changeAdminPin(newPin);
 
     if (result.success) {
       setSuccessMsg('เปลี่ยนรหัส PIN สำเร็จ');
-      setOldPin('');
       setNewPin('');
       setConfirmPin('');
       setTimeout(() => {
@@ -49,8 +47,7 @@ export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen
         handleClose();
       }, 1500);
     } else {
-      setError(result.message || 'รหัส PIN เดิมไม่ถูกต้อง หรือเกิดข้อผิดพลาด');
-      setOldPin('');
+      setError(result.message || 'เกิดข้อผิดพลาด');
       setNewPin('');
       setConfirmPin('');
     }
@@ -58,7 +55,6 @@ export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen
   };
 
   const handleClose = () => {
-    setOldPin('');
     setNewPin('');
     setConfirmPin('');
     setError('');
@@ -79,11 +75,6 @@ export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen
     }
   }, [isOpen]);
 
-  const handlePinChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-    setter(val);
-  };
-
   return (
     <Dialog
       open={isOpen}
@@ -99,29 +90,6 @@ export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen
           <DialogTitle>เปลี่ยนรหัส PIN</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="oldPin">รหัส PIN เดิม</Label>
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="flex items-center space-x-3 w-fit mx-auto">
-                <InputOTP
-                  id="oldPin"
-                  maxLength={6}
-                  value={oldPin}
-                  onChange={(val) => setOldPin(val)}
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} hideChar={true} />
-                    <InputOTPSlot index={1} hideChar={true} />
-                    <InputOTPSlot index={2} hideChar={true} />
-                    <InputOTPSlot index={3} hideChar={true} />
-                    <InputOTPSlot index={4} hideChar={true} />
-                    <InputOTPSlot index={5} hideChar={true} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="newPin">รหัส PIN ใหม่</Label>
             <div className="flex flex-col items-center justify-center space-y-4">
@@ -183,7 +151,7 @@ export const AdminChangePinModal: React.FC<AdminChangePinModalProps> = ({ isOpen
             <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
               ยกเลิก
             </Button>
-            <Button type="submit" disabled={oldPin.length !== 6 || newPin.length !== 6 || confirmPin.length !== 6 || loading}>
+            <Button type="submit" disabled={newPin.length !== 6 || confirmPin.length !== 6 || loading}>
               บันทึกการเปลี่ยนแปลง
             </Button>
           </div>

@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogPortal, DialogOverlay } from '@/components/ui/dialog';
-import { useAuth } from '@/contexts/AuthContext';
 import { createCompanyHoliday } from '@/services/companyHolidayService';
 import { toast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/utils';
@@ -37,7 +36,6 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
   onHolidayDialogChange,
   onSelectEndDateMode
 }) => {
-  const { isAdminAuthenticated } = useAuth();
   const [holidayName, setHolidayName] = useState('');
   const [holidayDescription, setHolidayDescription] = useState('');
   const [holidayDate, setHolidayDate] = useState<Date | null>(null);
@@ -172,7 +170,7 @@ export const CreateEventPopover: React.FC<CreateEventPopoverProps> = ({
                 </Button>
               )}
 
-              {isAdminAuthenticated && !isRangeSelection && (
+              {!isRangeSelection && (
                 <Button
                   onClick={handleAddHoliday}
                   className="w-full justify-start text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100"

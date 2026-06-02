@@ -1,10 +1,9 @@
 import { Elysia, t } from 'elysia';
 import { EventService } from '../services/eventService';
 import { EventMergeService } from '../services/eventMergeService';
-import { getPrisma } from '../database/connection';
 import { logService } from '../services/logService';
-import bcrypt from 'bcryptjs';
 import Logger from '../utils/logger';
+import { assertAdminAuth, validateAdminPassword } from '../utils/adminAuth';
 
 const eventService = new EventService();
 const eventMergeService = new EventMergeService();
@@ -30,20 +29,6 @@ const leaveDurationSchema = t.Union([
 ]);
 
 const idParam = t.Object({ id: t.String() });
-
-// ── Helpers ──────────────────────────────────────────────────
-
-async function validateAdminPassword(pin: string | undefined): Promise<void> {
-  if (!pin) throw new Error('Invalid PIN');
-
-  const prisma = getPrisma();
-  const adminConfig = await prisma.adminConfig.findFirst({ orderBy: { id: 'desc' } });
-
-  if (!adminConfig) throw new Error('Admin config not found');
-
-  const isValid = bcrypt.compareSync(pin, adminConfig.pin);
-  if (!isValid) throw new Error('Invalid PIN');
-}
 
 // ── Routes ───────────────────────────────────────────────────
 
@@ -75,8 +60,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }
   }, { params: idParam })
 
-  .post('/', async ({ body }) => {
+  .post('/', async ({ body, headers }) => {
     try {
+      assertAdminAuth(headers.authorization);
       Logger.debug(`Creating new event: ${JSON.stringify(body)}`);
       const newEvent = await eventService.createEvent(body);
       Logger.info(`Created event: ${newEvent.employeeName} - ${newEvent.leaveType} from ${newEvent.startDate} to ${newEvent.endDate}`);
@@ -103,8 +89,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }),
   })
 
-  .put('/:id', async ({ params: { id }, body }) => {
+  .put('/:id', async ({ params: { id }, body, headers }) => {
     try {
+      assertAdminAuth(headers.authorization);
       Logger.debug(`Updating event ${id}: ${JSON.stringify(body)}`);
       const event = await eventService.updateEvent(Number(id), body);
       if (!event) {
@@ -136,8 +123,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
     }),
   })
 
-  .delete('/:id', async ({ params: { id } }) => {
+  .delete('/:id', async ({ params: { id }, headers }) => {
     try {
+      assertAdminAuth(headers.authorization);
       Logger.debug(`Deleting event with ID: ${id}`);
       const success = await eventService.deleteEvent(Number(id));
       if (!success) {

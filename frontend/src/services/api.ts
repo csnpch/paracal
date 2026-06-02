@@ -10,6 +10,11 @@ export class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  private getAdminAuthHeaders(): Record<string, string> {
+    const token = localStorage.getItem("adminToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   private async request<T>(
     endpoint: string,
     options: {
@@ -26,6 +31,7 @@ export class ApiClient {
       data: options.data,
       headers: {
         "Content-Type": "application/json",
+        ...this.getAdminAuthHeaders(),
         ...options.headers,
       },
     });
