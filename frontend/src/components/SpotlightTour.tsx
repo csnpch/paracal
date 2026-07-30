@@ -94,22 +94,26 @@ const TourOverlay: React.FC<TourOverlayProps> = ({
   children,
 }) => {
   const maskId = useId().replace(/:/g, '');
+  const holeTop = rect.top - padding;
+  const holeLeft = rect.left - padding;
+  const holeWidth = rect.width + padding * 2;
+  const holeHeight = rect.height + padding * 2;
+  const holeBottom = holeTop + holeHeight;
+  const holeRight = holeLeft + holeWidth;
+
+  const backdropClass = 'fixed pointer-events-auto bg-black/72';
 
   return (
     <div className="fixed inset-0 z-[2000] pointer-events-none">
-      <svg
-        className="absolute inset-0 h-full w-full pointer-events-auto"
-        onClick={onBackdropClick}
-        aria-hidden="true"
-      >
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
         <defs>
           <mask id={maskId}>
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
             <rect
-              x={rect.left - padding}
-              y={rect.top - padding}
-              width={rect.width + padding * 2}
-              height={rect.height + padding * 2}
+              x={holeLeft}
+              y={holeTop}
+              width={holeWidth}
+              height={holeHeight}
               rx={borderRadius}
               fill="black"
             />
@@ -118,13 +122,42 @@ const TourOverlay: React.FC<TourOverlayProps> = ({
         <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.72)" mask={`url(#${maskId})`} />
       </svg>
 
+      {holeTop > 0 && (
+        <div
+          className={backdropClass}
+          style={{ top: 0, left: 0, right: 0, height: holeTop }}
+          onClick={onBackdropClick}
+          aria-hidden="true"
+        />
+      )}
+      {holeLeft > 0 && (
+        <div
+          className={backdropClass}
+          style={{ top: holeTop, left: 0, width: holeLeft, height: holeHeight }}
+          onClick={onBackdropClick}
+          aria-hidden="true"
+        />
+      )}
+      <div
+        className={backdropClass}
+        style={{ top: holeTop, left: holeRight, right: 0, height: holeHeight }}
+        onClick={onBackdropClick}
+        aria-hidden="true"
+      />
+      <div
+        className={backdropClass}
+        style={{ top: holeBottom, left: 0, right: 0, bottom: 0 }}
+        onClick={onBackdropClick}
+        aria-hidden="true"
+      />
+
       <div
         className="pointer-events-none absolute rounded-lg ring-2 ring-white/90 transition-[top,left,width,height] duration-150"
         style={{
-          top: rect.top - padding,
-          left: rect.left - padding,
-          width: rect.width + padding * 2,
-          height: rect.height + padding * 2,
+          top: holeTop,
+          left: holeLeft,
+          width: holeWidth,
+          height: holeHeight,
           borderRadius,
         }}
       />
