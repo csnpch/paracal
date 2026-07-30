@@ -408,11 +408,15 @@ export const FeatureTourWelcome: React.FC<FeatureTourWelcomeProps> = ({ onStart 
       onClick={canDismiss ? dismiss : undefined}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 text-center shadow-2xl dark:border-gray-600 dark:bg-gray-800"
+        className={`w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 text-center shadow-2xl dark:border-gray-600 dark:bg-gray-800 ${canDismiss ? 'cursor-pointer' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="feature-tour-welcome-title"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          if (!canDismiss) {
+            event.stopPropagation();
+          }
+        }}
       >
         <p className="text-[11px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
           What&apos;s new
