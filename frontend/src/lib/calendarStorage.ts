@@ -1,18 +1,27 @@
 import moment from 'moment';
 
 export type CalendarViewMode = 'month' | 'week' | 'day';
+export type StoredCalendarMode = 'events' | 'worklogs';
 
 const CALENDAR_STATE_STORAGE_KEY = 'paracal.calendarState';
 
 interface StoredCalendarState {
   currentDate: string;
   viewMode: CalendarViewMode;
+  calendarMode?: StoredCalendarMode;
 }
 
 const isCalendarViewMode = (value: string): value is CalendarViewMode =>
   value === 'month' || value === 'week' || value === 'day';
 
-export const getStoredCalendarState = (): { currentDate: Date; viewMode: CalendarViewMode } | null => {
+const isStoredCalendarMode = (value: string): value is StoredCalendarMode =>
+  value === 'events' || value === 'worklogs';
+
+export const getStoredCalendarState = (): {
+  currentDate: Date;
+  viewMode: CalendarViewMode;
+  calendarMode: StoredCalendarMode;
+} | null => {
   if (typeof window === 'undefined') return null;
 
   const raw = localStorage.getItem(CALENDAR_STATE_STORAGE_KEY);
@@ -28,18 +37,26 @@ export const getStoredCalendarState = (): { currentDate: Date; viewMode: Calenda
     return {
       currentDate: currentDate.toDate(),
       viewMode: parsed.viewMode,
+      calendarMode: parsed.calendarMode && isStoredCalendarMode(parsed.calendarMode)
+        ? parsed.calendarMode
+        : 'events',
     };
   } catch {
     return null;
   }
 };
 
-export const setStoredCalendarState = (currentDate: Date, viewMode: CalendarViewMode) => {
+export const setStoredCalendarState = (
+  currentDate: Date,
+  viewMode: CalendarViewMode,
+  calendarMode: StoredCalendarMode,
+) => {
   if (typeof window === 'undefined') return;
 
   const payload: StoredCalendarState = {
     currentDate: moment(currentDate).format('YYYY-MM-DD'),
     viewMode,
+    calendarMode,
   };
   localStorage.setItem(CALENDAR_STATE_STORAGE_KEY, JSON.stringify(payload));
 };

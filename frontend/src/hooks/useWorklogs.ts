@@ -6,7 +6,10 @@ import { getWorklogs, JiraWorklogResponse } from '@/services/api';
 const WORKLOG_LOAD_ERROR_MESSAGE =
   'ไม่สามารถโหลด Jira worklog ได้ กรุณาตรวจสอบการเชื่อมต่อ VPN แล้วลองใหม่อีกครั้ง';
 
-const WORKLOG_FETCH_DEBOUNCE_MS = 3000;
+const WORKLOG_FETCH_DEBOUNCE_MS = 2000;
+
+const isAbortedRequest = (error: unknown) =>
+  axios.isAxiosError(error) && error.code === 'ERR_CANCELED';
 
 interface UseWorklogsOptions {
   enabled: boolean;
@@ -60,6 +63,7 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
     }
 
     let active = true;
+    const abortController = new AbortController();
     setData(null);
     setLoading(true);
     setError(null);
@@ -70,7 +74,7 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
     const timer = window.setTimeout(() => {
       if (!active) return;
 
-      getWorklogs({ start: startDate, end: endDate })
+      getWorklogs({ start: startDate, end: endDate, signal: abortController.signal })
         .then((response) => {
           if (!active) return;
           const normalized = normalizeWorklogResponse(response, startDate, endDate);
@@ -78,7 +82,7 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
           setData(normalized);
         })
         .catch((fetchError) => {
-          if (!active) return;
+          if (!active || isAbortedRequest(fetchError)) return;
           const apiError = axios.isAxiosError(fetchError)
             ? (fetchError.response?.data as { error?: string } | undefined)?.error
             : undefined;
@@ -92,6 +96,7 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
     return () => {
       active = false;
       window.clearTimeout(timer);
+      abortController.abort();
     };
   }, [enabled, startDate, endDate, fetchTrigger]);
 

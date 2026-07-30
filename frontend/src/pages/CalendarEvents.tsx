@@ -32,7 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export type ViewMode = 'month' | 'week' | 'day';
 
 const readInitialCalendarState = (() => {
-  let cached: { currentDate: Date; viewMode: ViewMode } | null = null;
+  let cached: { currentDate: Date; viewMode: ViewMode; calendarMode: CalendarMode } | null = null;
 
   return () => {
     if (cached) return cached;
@@ -41,6 +41,7 @@ const readInitialCalendarState = (() => {
     cached = {
       currentDate: stored?.currentDate ?? moment().toDate(),
       viewMode: (stored?.viewMode ?? 'month') as ViewMode,
+      calendarMode: (stored?.calendarMode ?? 'events') as CalendarMode,
     };
     return cached;
   };
@@ -50,7 +51,7 @@ const CalendarEvents = () => {
   const { isAdminAuthenticated } = useAuth();
   const [currentDate, setCurrentDate] = useState(() => readInitialCalendarState().currentDate);
   const [viewMode, setViewMode] = useState<ViewMode>(() => readInitialCalendarState().viewMode);
-  const [calendarMode, setCalendarMode] = useState<CalendarMode>('events');
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>(() => readInitialCalendarState().calendarMode);
   const [selectedWorklogAuthorId, setSelectedWorklogAuthorId] = useState(getStoredWorklogAuthorId);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -72,8 +73,8 @@ const CalendarEvents = () => {
   const [mockWorklogsLoading, setMockWorklogsLoading] = useState(false);
 
   useEffect(() => {
-    setStoredCalendarState(currentDate, viewMode);
-  }, [currentDate, viewMode]);
+    setStoredCalendarState(currentDate, viewMode, calendarMode);
+  }, [currentDate, viewMode, calendarMode]);
 
   const {
     employees,

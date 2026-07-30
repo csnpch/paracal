@@ -21,6 +21,7 @@ export class ApiClient {
       method?: string;
       data?: any;
       headers?: Record<string, string>;
+      signal?: AbortSignal;
     } = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
@@ -29,6 +30,7 @@ export class ApiClient {
       url,
       method: options.method || "GET",
       data: options.data,
+      signal: options.signal,
       headers: {
         "Content-Type": "application/json",
         ...this.getAdminAuthHeaders(),
@@ -39,8 +41,8 @@ export class ApiClient {
     return response.data;
   }
 
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: "GET" });
+  async get<T>(endpoint: string, options?: { signal?: AbortSignal }): Promise<T> {
+    return this.request<T>(endpoint, { method: "GET", signal: options?.signal });
   }
 
   async post<T>(endpoint: string, data: any): Promise<T> {
@@ -167,6 +169,7 @@ export const getWorklogs = async (params: {
   start: string;
   end: string;
   project?: string;
+  signal?: AbortSignal;
 }): Promise<JiraWorklogResponse> => {
   const query = new URLSearchParams({
     start: params.start,
@@ -174,7 +177,9 @@ export const getWorklogs = async (params: {
     project: params.project || 'ALL',
   });
 
-  return apiClient.get<JiraWorklogResponse>(`/worklogs?${query.toString()}`);
+  return apiClient.get<JiraWorklogResponse>(`/worklogs?${query.toString()}`, {
+    signal: params.signal,
+  });
 };
 
 export interface CronjobConfig {
