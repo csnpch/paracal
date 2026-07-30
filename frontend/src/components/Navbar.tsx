@@ -7,6 +7,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AdminLoginModal } from './AdminLoginModal';
 import { AdminChangePinModal } from './AdminChangePinModal';
 import { AdminResetPinModal } from './AdminResetPinModal';
+import { AntdSwitch } from '@/components/ui/antd-switch';
+import { SpotlightTour } from '@/components/SpotlightTour';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { CALENDAR_MODE_TOUR_KEY } from '@/lib/onboarding';
 import {
   CalendarDays,
   Building2,
@@ -23,13 +27,29 @@ import {
   KeyRound,
   ClipboardList,
   RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+export type CalendarMode = 'events' | 'worklogs';
 
 interface NavbarProps {
   currentPage?: 'calendar-events' | 'dashboard' | 'employees' | 'cronjob-config' | 'company-holidays' | 'events-management';
+  calendarMode?: CalendarMode;
+  onCalendarModeChange?: (mode: CalendarMode) => void;
+  onWorklogRefresh?: () => void;
+  worklogsLoading?: boolean;
+  featureTourStarted?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  currentPage = 'calendar-events',
+  calendarMode,
+  onCalendarModeChange,
+  onWorklogRefresh,
+  worklogsLoading = false,
+  featureTourStarted = true,
+}) => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { isAdminAuthenticated, logout } = useAuth();
@@ -98,6 +118,44 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage = 'calendar-events' 
             </nav>
 
             <div className="flex items-center gap-2">
+              {currentPage === 'calendar-events' && calendarMode === 'worklogs' && onWorklogRefresh && (
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={onWorklogRefresh}
+                        disabled={worklogsLoading}
+                        data-tour="jira-worklog-reload"
+                        className="h-9 w-9 p-0 text-gray-500 hover:text-gray-700 dark:text-white dark:hover:text-gray-300 border-gray-200 dark:border-gray-600"
+                        aria-label="Reload Jira worklog data"
+                      >
+                        <RefreshCw className={cn('h-4 w-4', worklogsLoading && 'animate-spin')} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      โหลดข้อมูล Jira worklog ใหม่
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {currentPage === 'calendar-events' && calendarMode && onCalendarModeChange && (
+                <SpotlightTour
+                  storageKey={CALENDAR_MODE_TOUR_KEY}
+                  enabled={featureTourStarted}
+                  title="ใช้สวิตช์นี้เพื่อดูปฏิทินเหตุการณ์ปกติ หรือเปิดโหมด Jira Worklog"
+                >
+                  <AntdSwitch
+                    checked={calendarMode === 'worklogs'}
+                    checkedChildren="Jira Worklog"
+                    unCheckedChildren="Calendar"
+                    aria-label="Toggle between calendar and Jira worklog"
+                    onChange={(checked) => onCalendarModeChange(checked ? 'worklogs' : 'events')}
+                  />
+                </SpotlightTour>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

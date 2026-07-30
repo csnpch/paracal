@@ -8,7 +8,19 @@ import { useCalendarData } from '@/hooks/useCalendarData';
 import { useCompanyHolidays } from '@/hooks/useCompanyHolidays';
 import { Event } from '@/services/apiDatabase';
 import { Layout } from '@/components/Layout';
+import type { CalendarMode } from '@/components/Navbar';
+import { FeatureTourWelcome, SpotlightTargetTour } from '@/components/SpotlightTour';
+import {
+  FEATURE_TOUR_WELCOME_KEY,
+  hasSeenOnboarding,
+  JIRA_WORKLOG_PERSON_TOUR_KEY,
+  JIRA_WORKLOG_RELOAD_TOUR_KEY,
+} from '@/lib/onboarding';
 import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHolidayService';
+import { useWorklogs } from '@/hooks/useWorklogs';
+import { findEmployeeByAuthorName } from '@/lib/nameMatch';
+import { getStoredWorklogAuthorId, setStoredWorklogAuthorId } from '@/lib/worklog';
+import type { JiraWorklogEntry } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { LEAVE_TYPE_LABELS } from '@/lib/utils';
 import moment from 'moment';
@@ -20,17 +32,25 @@ const CalendarEvents = () => {
   const { isAdminAuthenticated } = useAuth();
   const [currentDate, setCurrentDate] = useState(moment().toDate());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>('events');
+  const [selectedWorklogAuthorId, setSelectedWorklogAuthorId] = useState(getStoredWorklogAuthorId);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCompanyHolidayModalOpen, setIsCompanyHolidayModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<Date[]>([]);
   const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
+  const [selectedDateWorklogs, setSelectedDateWorklogs] = useState<JiraWorklogEntry[]>([]);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingCompanyHoliday, setEditingCompanyHoliday] = useState<{ id: number; name: string; description?: string } | null>(null);
   const [highlightedDates, setHighlightedDates] = useState<string[]>([]);
   const [currentHoverEvent, setCurrentHoverEvent] = useState<{ startDate: string; endDate: string } | null>(null);
   const [filteredEmployeeIds, setFilteredEmployeeIds] = useState<number[]>([]);
+  const [jiraPersonTourDone, setJiraPersonTourDone] = useState(() => hasSeenOnboarding(JIRA_WORKLOG_PERSON_TOUR_KEY));
+  const [featureTourStarted, setFeatureTourStarted] = useState(() => hasSeenOnboarding(FEATURE_TOUR_WELCOME_KEY));
+  const [reloadTourActive, setReloadTourActive] = useState(false);
+  const [reloadTourDismissSignal, setReloadTourDismissSignal] = useState(0);
+  const [mockWorklogsLoading, setMockWorklogsLoading] = useState(false);
 
   const {
     employees,
@@ -64,6 +84,105 @@ const CalendarEvents = () => {
 
   const startYear = startDate.year();
   const endYear = endDate.year();
+
+  const worklogQueryRange = useMemo(() => {
+    let rangeStart = moment(currentDate);
+    let rangeEnd = moment(currentDate);
+
+    if (viewMode === 'month') {
+      const firstDay = moment(currentDate).startOf('month');
+      rangeStart = firstDay.clone().subtract(firstDay.day(), 'days');
+      rangeEnd = rangeStart.clone().add(41, 'days');
+    } else if (viewMode === 'week') {
+      rangeStart = moment(currentDate).startOf('week');
+      rangeEnd = rangeStart.clone().add(6, 'days');
+    } else {
+      rangeStart = moment(currentDate).startOf('day');
+      rangeEnd = rangeStart.clone().add(1, 'day').endOf('day');
+    }
+
+    return {
+      start: rangeStart.format('YYYY-MM-DD'),
+      end: rangeEnd.format('YYYY-MM-DD'),
+    };
+  }, [currentDate, viewMode]);
+
+  const { data: worklogData, loading: worklogsLoading, error: worklogsError, refetch: refetchWorklogs } = useWorklogs({
+    enabled: calendarMode === 'worklogs',
+    startDate: worklogQueryRange.start,
+    endDate: worklogQueryRange.end,
+  });
+
+  const showWorklogsLoading = calendarMode === 'worklogs' && (worklogsLoading || mockWorklogsLoading);
+
+  const handleWorklogRefresh = useCallback(() => {
+    if (reloadTourActive) {
+      setReloadTourDismissSignal((current) => current + 1);
+      setMockWorklogsLoading(true);
+      window.setTimeout(() => setMockWorklogsLoading(false), 700);
+      return;
+    }
+
+    refetchWorklogs();
+  }, [reloadTourActive, refetchWorklogs]);
+
+  const selectedWorklogAuthor = useMemo(
+    () => worklogData?.authors.find((author) => author.id === selectedWorklogAuthorId),
+    [worklogData?.authors, selectedWorklogAuthorId],
+  );
+
+  const matchedWorklogEmployeeId = useMemo(() => {
+    if (!selectedWorklogAuthor) return null;
+    return findEmployeeByAuthorName(selectedWorklogAuthor.name, employees)?.id ?? null;
+  }, [selectedWorklogAuthor, employees]);
+
+  const calendarFilteredEmployeeIds = useMemo(() => {
+    if (calendarMode !== 'worklogs') return filteredEmployeeIds;
+    if (!selectedWorklogAuthorId || !matchedWorklogEmployeeId) return [];
+    return [matchedWorklogEmployeeId];
+  }, [calendarMode, filteredEmployeeIds, selectedWorklogAuthorId, matchedWorklogEmployeeId]);
+
+  const suppressWorklogEvents = calendarMode === 'worklogs' && (!selectedWorklogAuthorId || !matchedWorklogEmployeeId);
+
+  const getModalEventsForDate = useCallback((date: Date): Event[] => {
+    const dayEvents = getEventsForDate(date);
+    if (calendarMode === 'worklogs') {
+      if (!selectedWorklogAuthorId || !matchedWorklogEmployeeId) return [];
+      return dayEvents.filter((event) => event.employeeId === matchedWorklogEmployeeId);
+    }
+    if (filteredEmployeeIds.length > 0) {
+      return dayEvents.filter((event) => filteredEmployeeIds.includes(event.employeeId));
+    }
+    return dayEvents;
+  }, [calendarMode, selectedWorklogAuthorId, matchedWorklogEmployeeId, filteredEmployeeIds, getEventsForDate]);
+
+  const visibleWorklogEntries = useMemo(() => {
+    if (calendarMode !== 'worklogs' || !selectedWorklogAuthorId) return [];
+    return (worklogData?.entries || []).filter((entry) => entry.authorId === selectedWorklogAuthorId);
+  }, [calendarMode, selectedWorklogAuthorId, worklogData?.entries]);
+
+  const handleWorklogAuthorChange = useCallback((authorId: string) => {
+    setSelectedWorklogAuthorId(authorId);
+    setStoredWorklogAuthorId(authorId);
+  }, []);
+
+  const handleCalendarModeChange = (mode: CalendarMode) => {
+    setCalendarMode(mode);
+    if (mode === 'worklogs') {
+      setFilteredEmployeeIds([]);
+      setSelectedWorklogAuthorId((current) => current || getStoredWorklogAuthorId());
+    }
+  };
+
+  useEffect(() => {
+    if (calendarMode !== 'worklogs' || !worklogData?.authors?.length || !selectedWorklogAuthorId) return;
+
+    const authorExists = worklogData.authors.some((author) => author.id === selectedWorklogAuthorId);
+    if (!authorExists) {
+      setSelectedWorklogAuthorId('');
+      setStoredWorklogAuthorId('');
+    }
+  }, [calendarMode, worklogData?.authors, selectedWorklogAuthorId]);
 
   // Load company holidays for all years that appear in the calendar grid
   const { holidays: currentYearHolidays, refresh: refreshCurrentYear } = useCompanyHolidays(currentYear);
@@ -102,9 +221,22 @@ const CalendarEvents = () => {
   };
 
   const handleDateClick = (date: Date) => {
+    if (calendarMode === 'worklogs' && (!selectedWorklogAuthorId || showWorklogsLoading)) {
+      return;
+    }
+
     setSelectedDate(date);
-    const dayEvents = getEventsForDate(date);
-    setSelectedDateEvents(dayEvents);
+    setSelectedDateEvents(getModalEventsForDate(date));
+
+    if (calendarMode === 'worklogs') {
+      const dateString = moment(date).format('YYYY-MM-DD');
+      setSelectedDateWorklogs(
+        visibleWorklogEntries.filter((entry) => entry.date === dateString),
+      );
+    } else {
+      setSelectedDateWorklogs([]);
+    }
+
     setIsDetailsModalOpen(true);
   };
 
@@ -238,6 +370,17 @@ const CalendarEvents = () => {
     setCurrentDate(newDate);
   };
 
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    if (mode === 'month') {
+      setCurrentDate(moment().startOf('month').toDate());
+    } else if (mode === 'week') {
+      setCurrentDate(moment().startOf('week').toDate());
+    } else {
+      setCurrentDate(moment().startOf('day').toDate());
+    }
+  };
+
   const handleNavigateToMonth = (year: number, month: number) => {
     const newDate = moment().year(year).month(month).startOf('month').toDate();
     setCurrentDate(newDate);
@@ -279,6 +422,13 @@ const CalendarEvents = () => {
     setHighlightedDates(dates);
   }, [currentDate, companyHolidays]);
 
+  const handleWorklogDatesHover = (dates: string[]) => {
+    if (dates.length === 0) return;
+    const sortedDates = [...dates].sort();
+    setCurrentHoverEvent({ startDate: sortedDates[0], endDate: sortedDates[sortedDates.length - 1] });
+    setHighlightedDates(sortedDates);
+  };
+
   const handleEventHoverEnd = () => {
     setCurrentHoverEvent(null);
     setHighlightedDates([]);
@@ -305,8 +455,7 @@ const CalendarEvents = () => {
       refreshCompanyHolidays();
       // Refresh events for the selected date to update the modal
       if (selectedDate) {
-        const dayEvents = getEventsForDate(selectedDate);
-        setSelectedDateEvents(dayEvents);
+        setSelectedDateEvents(getModalEventsForDate(selectedDate));
       }
     } catch (error) {
       console.error('Failed to delete company holiday:', error);
@@ -334,8 +483,7 @@ const CalendarEvents = () => {
 
       // Refresh events for the selected date to update the modal
       if (selectedDate) {
-        const dayEvents = getEventsForDate(selectedDate);
-        setSelectedDateEvents(dayEvents);
+        setSelectedDateEvents(getModalEventsForDate(selectedDate));
       }
     } catch (error) {
       console.error('Failed to save company holiday:', error);
@@ -350,10 +498,16 @@ const CalendarEvents = () => {
 
   useEffect(() => {
     if (selectedDate) {
-      const dayEvents = getEventsForDate(selectedDate);
-      setSelectedDateEvents(dayEvents);
+      setSelectedDateEvents(getModalEventsForDate(selectedDate));
+
+      if (calendarMode === 'worklogs') {
+        const dateString = moment(selectedDate).format('YYYY-MM-DD');
+        setSelectedDateWorklogs(
+          visibleWorklogEntries.filter((entry) => entry.date === dateString),
+        );
+      }
     }
-  }, [events, selectedDate, getEventsForDate]);
+  }, [events, selectedDate, getModalEventsForDate, calendarMode, visibleWorklogEntries]);
 
   // Re-trigger highlight when currentDate changes if there's a hover event
   useEffect(() => {
@@ -363,11 +517,36 @@ const CalendarEvents = () => {
   }, [currentDate, currentHoverEvent, updateHighlightedDates]);
 
   return (
-    <Layout currentPage="calendar-events">
+    <Layout
+      currentPage="calendar-events"
+      calendarMode={calendarMode}
+      onCalendarModeChange={handleCalendarModeChange}
+      onWorklogRefresh={handleWorklogRefresh}
+      worklogsLoading={showWorklogsLoading}
+      featureTourStarted={featureTourStarted}
+    >
+      {!featureTourStarted && (
+        <FeatureTourWelcome onStart={() => setFeatureTourStarted(true)} />
+      )}
+      <SpotlightTargetTour
+        storageKey={JIRA_WORKLOG_PERSON_TOUR_KEY}
+        enabled={featureTourStarted && calendarMode === 'worklogs'}
+        targetSelector='[data-tour="jira-worklog-person-select"]'
+        title="เลือกชื่อเพื่อดู worklog บนปฏิทิน"
+        onComplete={() => setJiraPersonTourDone(true)}
+      />
+      <SpotlightTargetTour
+        storageKey={JIRA_WORKLOG_RELOAD_TOUR_KEY}
+        enabled={featureTourStarted && calendarMode === 'worklogs' && !!selectedWorklogAuthorId && jiraPersonTourDone}
+        targetSelector='[data-tour="jira-worklog-reload"]'
+        title="ปุ่มสำหรับดึงข้อมูล jira ล่าสุด"
+        dismissSignal={reloadTourDismissSignal}
+        onOpenChange={setReloadTourActive}
+      />
       <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-8">
-        {error && (
+        {(error || (calendarMode === 'worklogs' && worklogsError)) && (
           <div className="bg-red-50 dark:bg-red-800/30 border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4">
-            Error: {error}
+            Error: {error || worklogsError}
           </div>
         )}
 
@@ -377,7 +556,6 @@ const CalendarEvents = () => {
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-            {/* Calendar Grid - 70% width */}
             <div className="flex-1 lg:w-[70%]">
               <div className="w-full pb-2">
                 <div className="w-full">
@@ -388,19 +566,15 @@ const CalendarEvents = () => {
                     employees={employees}
                     companyHolidays={companyHolidays}
                     highlightedDates={highlightedDates}
-                    filteredEmployeeIds={filteredEmployeeIds}
-                    onViewModeChange={(mode) => {
-                      setViewMode(mode);
-                      let newDate;
-                      if (mode === 'month') {
-                        newDate = moment().startOf('month').toDate();
-                      } else if (mode === 'week') {
-                        newDate = moment().startOf('week').toDate();
-                      } else {
-                        newDate = moment().startOf('day').toDate();
-                      }
-                      setCurrentDate(newDate);
-                    }}
+                    filteredEmployeeIds={calendarFilteredEmployeeIds}
+                    worklogMode={calendarMode === 'worklogs'}
+                    worklogEntries={visibleWorklogEntries}
+                    worklogAuthors={worklogData?.authors || []}
+                    selectedWorklogAuthorId={selectedWorklogAuthorId}
+                    worklogsLoading={showWorklogsLoading}
+                    suppressEvents={suppressWorklogEvents}
+                    onWorklogAuthorChange={handleWorklogAuthorChange}
+                    onViewModeChange={handleViewModeChange}
                     onDateClick={handleDateClick}
                     onCreateEvent={handleCreateEvent}
                     onHolidayAdded={refreshCompanyHolidays}
@@ -412,16 +586,20 @@ const CalendarEvents = () => {
               </div>
             </div>
 
-            {/* Upcoming Events Section - 30% width */}
             <div className="lg:w-[30%]">
               <UpcomingEvents
                 events={events}
                 employees={employees}
-                filteredEmployeeIds={filteredEmployeeIds}
+                filteredEmployeeIds={calendarMode === 'worklogs' ? calendarFilteredEmployeeIds : filteredEmployeeIds}
+                worklogMode={calendarMode === 'worklogs'}
+                worklogs={visibleWorklogEntries}
+                worklogsLoading={showWorklogsLoading}
+                selectedWorklogAuthorId={selectedWorklogAuthorId}
                 onNavigateToMonth={handleNavigateToMonth}
                 onEventHover={handleEventHover}
                 onEventHoverEnd={handleEventHoverEnd}
-                onEmployeeFilter={handleEmployeeFilter}
+                onWorklogDatesHover={handleWorklogDatesHover}
+                onEmployeeFilter={calendarMode === 'worklogs' ? undefined : handleEmployeeFilter}
               />
             </div>
           </div>
@@ -452,6 +630,8 @@ const CalendarEvents = () => {
         onEditEvent={isAdminAuthenticated ? handleEditEvent : undefined}
         onDeleteEvent={isAdminAuthenticated ? handleDeleteEvent : undefined}
         events={selectedDateEvents}
+        worklogs={selectedDateWorklogs}
+        worklogMode={calendarMode === 'worklogs'}
         employees={employees}
         selectedDate={selectedDate}
         companyHoliday={selectedDate ? isCompanyHoliday(selectedDate) : null}

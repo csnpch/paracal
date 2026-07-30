@@ -10,6 +10,7 @@ import { companyHolidaysRoutes } from './routes/companyHolidays';
 import { cronjobRoutes } from './routes/cronjobs';
 import { authRoutes } from './routes/auth';
 import { logsRoutes } from './routes/logs';
+import { worklogsRoutes } from './routes/worklogs';
 import { loggerMiddleware } from './middleware/logger';
 import { CronjobService } from './services/cronjobService';
 import { EventMergeService } from './services/eventMergeService';
@@ -104,6 +105,7 @@ async function startServer() {
     .use(cronjobRoutes)
     .use(authRoutes)
     .use(logsRoutes)
+    .use(worklogsRoutes)
     .listen(config.port);
 
   Logger.info(`🚀 Paracal API is running at http://localhost:${config.port}`);
@@ -119,4 +121,3 @@ async function startServer() {
 const app = startServer();
 
 export type App = Awaited<typeof app>;
-

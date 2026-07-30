@@ -1,15 +1,36 @@
 import React from 'react';
 import { Navbar } from './Navbar';
+import type { CalendarMode } from './Navbar';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentPage?: 'calendar-events' | 'dashboard' | 'employees' | 'cronjob-config' | 'company-holidays' | 'events-management';
+  calendarMode?: CalendarMode;
+  onCalendarModeChange?: (mode: CalendarMode) => void;
+  onWorklogRefresh?: () => void;
+  worklogsLoading?: boolean;
+  featureTourStarted?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentPage = 'calendar-events' }) => {
+export const Layout: React.FC<LayoutProps> = ({
+  children,
+  currentPage = 'calendar-events',
+  calendarMode,
+  onCalendarModeChange,
+  onWorklogRefresh,
+  worklogsLoading,
+  featureTourStarted = true,
+}) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700 flex flex-col">
-      <Navbar currentPage={currentPage} />
+      <Navbar
+        currentPage={currentPage}
+        calendarMode={calendarMode}
+        onCalendarModeChange={onCalendarModeChange}
+        onWorklogRefresh={onWorklogRefresh}
+        worklogsLoading={worklogsLoading}
+        featureTourStarted={featureTourStarted}
+      />
       <main className="flex-1">
         {children}
       </main>

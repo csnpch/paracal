@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye, EyeOff, Clock3, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateEventPopover } from '@/components/CreateEventPopover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useHolidays } from '@/hooks/useHolidays';
 import { useAuth } from '@/contexts/AuthContext';
 import { ViewMode } from '@/pages/CalendarEvents';
 import { Event } from '@/services/apiDatabase';
-import { DAYS_OF_WEEK, MONTHS, LEAVE_TYPE_COLORS_SOLID, LEAVE_TYPE_LABELS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
+import type { JiraWorklogAuthor, JiraWorklogEntry } from '@/services/api';
+import { cn, DAYS_OF_WEEK, MONTHS, LEAVE_TYPE_COLORS_SOLID, LEAVE_TYPE_LABELS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
+import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
 import { toast } from '@/hooks/use-toast';
 import moment from 'moment';
 
@@ -20,6 +24,13 @@ interface CalendarGridProps {
   companyHolidays: any[];
   highlightedDates?: string[];
   filteredEmployeeIds?: number[];
+  worklogMode?: boolean;
+  worklogEntries?: JiraWorklogEntry[];
+  worklogAuthors?: JiraWorklogAuthor[];
+  selectedWorklogAuthorId?: string;
+  worklogsLoading?: boolean;
+  suppressEvents?: boolean;
+  onWorklogAuthorChange?: (authorId: string) => void;
   onViewModeChange?: (viewMode: ViewMode) => void;
   onDateClick: (date: Date) => void;
   onCreateEvent: (date: Date, dateRange?: Date[]) => void;
@@ -29,6 +40,16 @@ interface CalendarGridProps {
   onTodayClick: () => void;
 }
 
+const worklogToneClass = (dayComplete: boolean) =>
+  dayComplete
+    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/50 dark:text-emerald-100 dark:border-emerald-600'
+    : 'bg-gray-200 text-gray-800 border-gray-300 dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500';
+
+const worklogCardToneClass = (dayComplete: boolean) =>
+  dayComplete
+    ? 'border-emerald-200 dark:border-emerald-700 bg-emerald-50/90 dark:bg-emerald-950/30'
+    : 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700/70';
+
 export const CalendarGrid: React.FC<CalendarGridProps> = ({
   currentDate,
   viewMode = 'month',
@@ -37,6 +58,13 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   companyHolidays,
   highlightedDates = [],
   filteredEmployeeIds = [],
+  worklogMode = false,
+  worklogEntries = [],
+  worklogAuthors = [],
+  selectedWorklogAuthorId = '',
+  worklogsLoading = false,
+  suppressEvents = false,
+  onWorklogAuthorChange,
   onViewModeChange,
   onDateClick,
   onCreateEvent,
@@ -162,6 +190,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const getEventsForDate = (date: Date) => {
     if (!Array.isArray(events)) return [];
+    if (suppressEvents) return [];
     const dateString = moment(date).format('YYYY-MM-DD');
     const filteredEvents = events.filter(event => {
       // Filter by employee if filteredEmployeeIds is set
@@ -200,10 +229,157 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     });
   };
 
+  const getWorklogsForDate = (date: Date) => {
+    if (!worklogMode || !selectedWorklogAuthorId) return [];
+    const dateString = moment(date).format('YYYY-MM-DD');
+    return worklogEntries.filter((entry) => entry.date === dateString);
+  };
+
+  const shouldShowWorklogDayLoading = (date: Date) => {
+    if (!worklogMode || !worklogsLoading) return false;
+    if (isWeekend(date) || isCompanyHoliday(date)) return false;
+    return true;
+  };
+
+  const renderWorklogChip = (entry: JiraWorklogEntry, dayComplete: boolean, compact = true) => (
+    <div
+      key={`worklog-${entry.id}`}
+      title={`${entry.issueKey}: ${entry.issueSummary}${entry.comment ? ` — ${entry.comment}` : ''}`}
+      className={`text-[10px] sm:text-xs py-0.5 px-0.5 sm:px-1 rounded border font-normal leading-tight truncate flex items-center gap-1 ${worklogToneClass(dayComplete)} ${compact ? '' : 'md:text-xs'}`}
+    >
+      <span className="truncate font-medium">{entry.issueKey}</span>
+      <span className="shrink-0 flex items-center gap-0.5 opacity-80">
+        <Clock3 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+        {formatWorklogDuration(entry.seconds)}
+      </span>
+    </div>
+  );
+
+  const renderWorklogSkeleton = () => (
+    <div className="space-y-1 mt-1" aria-hidden="true">
+      <Skeleton className="h-3.5 w-full rounded-sm" />
+      <Skeleton className="h-3.5 w-4/5 rounded-sm" />
+    </div>
+  );
+
   const getEmployeeName = (employeeId: number) => {
     if (!Array.isArray(employees)) return 'Unknown Employee';
     const employee = employees.find(emp => emp.id === employeeId);
     return employee?.name || 'Unknown Employee';
+  };
+
+  const renderDayTooltipContent = (
+    dayEvents: Event[],
+    dayWorklogs: JiraWorklogEntry[],
+    thaiHoliday: { name: string } | null | undefined,
+    companyHoliday: { name: string } | null | undefined,
+  ) => {
+    const dayWorklogComplete = getWorklogDayTotalSeconds(dayWorklogs) >= WORKLOG_TARGET_SECONDS;
+    const worklogTotalSeconds = getWorklogDayTotalSeconds(dayWorklogs);
+    const hasHolidaySection = Boolean(thaiHoliday || companyHoliday);
+    const hasEventsSection = dayEvents.length > 0;
+    const hasWorklogsSection = dayWorklogs.length > 0;
+
+    return (
+      <div className="space-y-3 p-1">
+        {thaiHoliday && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-600 dark:bg-gray-700/80">
+            <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              🇹🇭 {thaiHoliday.name}
+            </div>
+          </div>
+        )}
+        {companyHoliday && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-900/20">
+            <div className="text-sm font-semibold text-red-600 dark:text-red-400">
+              🏢 {companyHoliday.name}
+            </div>
+          </div>
+        )}
+
+        {hasEventsSection && (
+          <div className={cn(hasHolidaySection && 'pt-1')}>
+            <div className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+              Events today ({dayEvents.length})
+            </div>
+            <div className="space-y-2.5">
+              {dayEvents.map((evt) => {
+                const empName = getEmployeeName(evt.employeeId);
+                const typeLabel = LEAVE_TYPE_LABELS[evt.leaveType as keyof typeof LEAVE_TYPE_LABELS] || evt.leaveType;
+                const durationLabel = evt.leaveDuration === 'morning' ? ' (morning)' : evt.leaveDuration === 'afternoon' ? ' (afternoon)' : '';
+
+                return (
+                  <div
+                    key={evt.id}
+                    className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-600 dark:bg-gray-700/80"
+                  >
+                    <div className="text-xs font-medium text-gray-800 dark:text-gray-200">{empName}</div>
+                    <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                      {typeLabel}{durationLabel}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {hasWorklogsSection && (
+          <div className={cn((hasHolidaySection || hasEventsSection) && 'pt-1 border-t border-gray-100 dark:border-gray-700')}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                Jira Worklogs ({dayWorklogs.length})
+              </div>
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${dayWorklogComplete ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-100'}`}>
+                {formatWorklogHours(worklogTotalSeconds)}h
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {dayWorklogs.map((entry) => (
+                <a
+                  key={entry.id}
+                  href={getJiraIssueUrl(entry)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    'block rounded-lg border px-3 py-2.5 transition-colors hover:opacity-95',
+                    worklogCardToneClass(dayWorklogComplete),
+                  )}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          {entry.projectKey}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                          {entry.issueKey}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{entry.issueSummary}</p>
+                      {entry.comment && (
+                        <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400 line-clamp-2">{entry.comment}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                        <Clock3 className="h-3 w-3" />
+                        {formatWorklogDuration(entry.seconds)}
+                      </span>
+                      <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        {moment(entry.started).format('HH:mm')}
+                      </p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const isCurrentMonth = (date: Date) => {
@@ -235,8 +411,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     }
 
     const dayEvents = getEventsForDate(date);
+    const dayWorklogs = getWorklogsForDate(date);
     const companyHoliday = isCompanyHoliday(date);
     const thaiHoliday = isHoliday(date);
+
+    if (worklogMode) {
+      if (!selectedWorklogAuthorId || worklogsLoading) return;
+      onDateClick(date);
+      return;
+    }
 
     if (!isAdminAuthenticated) {
       const hasContent = dayEvents.length > 0 || companyHoliday || thaiHoliday;
@@ -273,7 +456,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   };
 
   const handleMouseDown = (date: Date) => {
-    if (!isAdminAuthenticated) return;
+    if (worklogMode || !isAdminAuthenticated) return;
     setIsDragging(true);
     setDragStartDate(date);
     setDragEndDate(date);
@@ -546,6 +729,59 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const gridColsClass = showWeekends ? 'grid-cols-7' : 'grid-cols-5';
   const visibleDaysOfWeek = showWeekends ? DAYS_OF_WEEK : DAYS_OF_WEEK.filter((_, i) => i !== 0 && i !== 6);
+  const monthDayCellSizeClass = showWeekends
+    ? 'max-md:min-h-[4.75rem] max-md:aspect-[4/5] md:aspect-auto md:h-full'
+    : 'aspect-square md:aspect-auto md:h-full';
+
+  const worklogAuthorSelectClass = cn(
+    'h-9 text-xs rounded-md bg-white/50 dark:bg-gray-800/50',
+    worklogsLoading && 'flex-1 sm:min-w-[200px] sm:max-w-[280px] border border-gray-200/50 dark:border-gray-700',
+    !worklogsLoading && !selectedWorklogAuthorId && 'flex-1 sm:min-w-[200px] sm:max-w-[280px] border-2 border-red-600 dark:border-red-500 ring-2 ring-red-600/30',
+    !worklogsLoading && selectedWorklogAuthorId && 'flex-1 sm:min-w-[200px] sm:max-w-[280px] border-2 border-blue-600 dark:border-blue-600 ring-1 ring-blue-600/20',
+  );
+
+  const worklogAuthorSelectMobileClass = cn(
+    'h-9 w-full text-xs rounded-md bg-white/60 dark:bg-gray-800/50',
+    worklogsLoading && 'border border-gray-200/50 dark:border-gray-700',
+    !worklogsLoading && !selectedWorklogAuthorId && 'border-2 border-red-600 dark:border-red-500 ring-2 ring-red-600/30',
+    !worklogsLoading && selectedWorklogAuthorId && 'border-2 border-blue-600 dark:border-blue-600 ring-1 ring-blue-600/20',
+  );
+
+  const renderWorklogAuthorSelect = (triggerClassName: string) => (
+    <Select
+      value={selectedWorklogAuthorId || undefined}
+      onValueChange={onWorklogAuthorChange}
+      disabled={worklogsLoading}
+    >
+      <SelectTrigger
+        className={cn(
+          triggerClassName,
+          worklogsLoading && 'items-center [&>span]:line-clamp-none',
+        )}
+        disabled={worklogsLoading}
+        data-tour="jira-worklog-person-select"
+        aria-label="Select person for Jira worklog"
+        aria-required="true"
+        aria-busy={worklogsLoading}
+      >
+        {worklogsLoading ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap text-gray-500 dark:text-gray-300">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            <span className="truncate">Loading people...</span>
+          </div>
+        ) : (
+          <SelectValue placeholder="Select person *" />
+        )}
+      </SelectTrigger>
+      <SelectContent>
+        {worklogAuthors.map((author) => (
+          <SelectItem key={author.id} value={author.id}>
+            {author.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -560,10 +796,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-900 dark:text-white leading-none mt-0.5">
                   {MONTHS[month]} {year}
                 </h2>
-                {filteredEmployeeIds && filteredEmployeeIds.length > 0 && (
+                {filteredEmployeeIds && filteredEmployeeIds.length > 0 && !worklogMode && (
                   <div className="flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/50 border border-blue-400 dark:border-blue-600 rounded px-2 py-0.5 ml-1 max-w-[150px] sm:max-w-xs md:max-w-sm" title={filteredEmployeeIds.map(id => getEmployeeName(id)).join(', ')}>
                     <span className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300 font-medium truncate overflow-hidden">
-                      กรอง: {filteredEmployeeIds.map(id => getEmployeeName(id)).join(', ')}
+                      Filter: {filteredEmployeeIds.map(id => getEmployeeName(id)).join(', ')}
                     </span>
                   </div>
                 )}
@@ -628,12 +864,18 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               </div>
 
               {onViewModeChange && (
-                <Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as ViewMode)} className="w-[245px] sm:w-[200px] h-7 hidden sm:block">
-                  <TabsList className="grid w-full grid-cols-3 h-7 p-0.5 bg-white/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700">
-                    <TabsTrigger value="month" className="text-[11px] sm:text-xs h-6 px-2 rounded data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 data-[state=active]:shadow-sm">เดือน</TabsTrigger>
-                    <TabsTrigger value="week" className="text-[11px] sm:text-xs h-6 px-2 rounded data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 data-[state=active]:shadow-sm">สัปดาห์</TabsTrigger>
-                    <TabsTrigger value="day" className="text-[11px] sm:text-xs h-6 px-2 rounded data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 data-[state=active]:shadow-sm">วัน</TabsTrigger>
-                  </TabsList>
+                <Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as ViewMode)} className="w-full sm:w-auto hidden sm:block">
+                  <div className="flex w-full sm:w-auto items-stretch gap-2">
+                    {worklogMode && onWorklogAuthorChange && renderWorklogAuthorSelect(worklogAuthorSelectClass)}
+                    <TabsList className={cn(
+                      'grid h-9 p-0 overflow-hidden rounded-md bg-white/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700',
+                      worklogMode && onWorklogAuthorChange ? 'w-[200px] shrink-0 grid-cols-3' : 'w-[200px] grid-cols-3',
+                    )}>
+                      <TabsTrigger value="month" className="text-[11px] sm:text-xs h-full rounded-none px-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 data-[state=active]:shadow-none">เดือน</TabsTrigger>
+                      <TabsTrigger value="week" className="text-[11px] sm:text-xs h-full rounded-none px-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 data-[state=active]:shadow-none">สัปดาห์</TabsTrigger>
+                      <TabsTrigger value="day" className="text-[11px] sm:text-xs h-full rounded-none px-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 data-[state=active]:shadow-none">วัน</TabsTrigger>
+                    </TabsList>
+                  </div>
                 </Tabs>
               )}
             </div>
@@ -723,12 +965,13 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
         {/* Mobile View Mode Tabs */}
         {onViewModeChange && (
-          <div className="sm:hidden px-2 pt-2 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 border-b border-gray-200 dark:border-gray-600">
+          <div className="sm:hidden px-2 pt-2 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 border-b border-gray-200 dark:border-gray-600 space-y-2">
+            {worklogMode && onWorklogAuthorChange && renderWorklogAuthorSelect(worklogAuthorSelectMobileClass)}
             <Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as ViewMode)} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-white/60 dark:bg-gray-800/50 p-1 h-auto rounded-lg border border-gray-200/50 dark:border-gray-700">
-                <TabsTrigger value="month" className="text-xs py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">เดือน</TabsTrigger>
-                <TabsTrigger value="week" className="text-xs py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">สัปดาห์</TabsTrigger>
-                <TabsTrigger value="day" className="text-xs py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">วัน</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 h-9 p-0 overflow-hidden rounded-md bg-white/60 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700">
+                <TabsTrigger value="month" className="text-xs h-full rounded-none data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-none dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">เดือน</TabsTrigger>
+                <TabsTrigger value="week" className="text-xs h-full rounded-none data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-none dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">สัปดาห์</TabsTrigger>
+                <TabsTrigger value="day" className="text-xs h-full rounded-none data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-none dark:data-[state=active]:bg-gray-600 dark:data-[state=active]:text-white">วัน</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -788,6 +1031,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     <div key={weekIndex} className={`grid ${gridColsClass} gap-0.5 sm:gap-1 md:flex-1`}>
                       {visibleDaysInWeek.map((date, index) => {
                         const dayEvents = getEventsForDate(date);
+                        const dayWorklogs = getWorklogsForDate(date);
                         const isOtherMonth = !isCurrentMonth(date);
                         const isTodayDate = isToday(date);
                         const hasEvents = dayEvents.length > 0;
@@ -839,8 +1083,13 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                           // Highlight styling (overrides other styling when highlighted)
                           if (isHighlighted && !isOtherMonth) {
-                            bgColor = 'bg-green-100 dark:bg-green-900/30';
-                            borderColor = 'border-green-400 dark:border-green-600 ring-1 ring-green-300 dark:ring-green-700';
+                            if (worklogMode) {
+                              bgColor = 'bg-blue-100 dark:bg-blue-900/30';
+                              borderColor = 'border-blue-400 dark:border-blue-600 ring-1 ring-blue-300 dark:ring-blue-700';
+                            } else {
+                              bgColor = 'bg-green-100 dark:bg-green-900/30';
+                              borderColor = 'border-green-400 dark:border-green-600 ring-1 ring-green-300 dark:ring-green-700';
+                            }
                           }
                         }
 
@@ -851,7 +1100,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         const dayContent = (
                           <div
                             key={`${weekIndex}-${index}`}
-                            className={`aspect-square md:aspect-auto md:h-full calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-300 select-none hover:shadow-md hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isActiveState ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!isActiveState ? borderColor : ''} ${isTodayDate && !isOtherMonth ? 'shadow-[inset_0_0_8px_rgba(59,130,246,0.1)] calendar-today-glow' : ''}`}
+                            className={`${monthDayCellSizeClass} calendar-day-cell flex flex-col overflow-hidden p-0.5 sm:p-1 border rounded cursor-pointer transition-all duration-300 select-none hover:shadow-md hover:scale-[1.01] transform ${!isOtherMonth ? 'hover:bg-blue-50 dark:hover:bg-gray-800/30 hover:border-blue-300 dark:hover:border-gray-500' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} ${isActiveState ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 ring-2 ring-blue-200 dark:ring-blue-700' : bgColor} ${textColor} ${!isActiveState ? borderColor : ''} ${isTodayDate && !isOtherMonth ? 'shadow-[inset_0_0_8px_rgba(59,130,246,0.1)] calendar-today-glow' : ''}`}
                             data-date={moment(date).format('YYYY-MM-DD')}
                             onClick={() => handleDateClick(date)}
                             onMouseDown={() => {
@@ -887,6 +1136,28 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                 </div>
                               )}
                             </div>
+
+                            {worklogMode && shouldShowWorklogDayLoading(date) && renderWorklogSkeleton()}
+
+                            {worklogMode && !worklogsLoading && selectedWorklogAuthorId && dayWorklogs.length > 0 && (() => {
+                              const dayWorklogComplete = getWorklogDayTotalSeconds(dayWorklogs) >= WORKLOG_TARGET_SECONDS;
+                              return (
+                              <div className="space-y-0.5 mt-1">
+                                {dayWorklogs.slice(0, 2).map((entry) => renderWorklogChip(entry, dayWorklogComplete))}
+                                {dayWorklogs.length > 2 && (
+                                  <div className={`text-[10px] sm:text-xs text-center font-medium rounded-sm py-0.5 truncate border ${worklogToneClass(dayWorklogComplete)}`}>
+                                    +{dayWorklogs.length - 2} worklogs
+                                  </div>
+                                )}
+                              </div>
+                              );
+                            })()}
+
+                            {worklogMode && !worklogsLoading && !selectedWorklogAuthorId && !isOtherMonth && (
+                              <p className="mt-1 text-[9px] text-indigo-500/80 dark:text-indigo-300/70 leading-tight">
+                                Select person
+                              </p>
+                            )}
 
                             {/* Only show events if it's not a weekend and not a company holiday */}
                             {!weekend && !companyHoliday && (() => {
@@ -933,6 +1204,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                 </div>
                               );
                             })()}
+
                             {/* Show holidays after events (lower priority) */}
                             {companyHoliday && (
                               <div className={`text-xs bg-red-200 dark:bg-red-600 text-black dark:text-red-100 px-1 py-0.5 rounded mb-0.5 font-normal leading-tight cursor-pointer ${isOtherMonth ? 'opacity-40' : ''}`}>
@@ -949,42 +1221,13 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           </div>
                         );
 
-                        const dayElement = (thaiHoliday || companyHoliday || dayEvents.length > 0) ? (
+                        const dayElement = (thaiHoliday || companyHoliday || dayEvents.length > 0 || dayWorklogs.length > 0) ? (
                           <Tooltip key={`tooltip-${weekIndex}-${index}`}>
                             <TooltipTrigger asChild>
                               {dayContent}
                             </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-[300px] z-[100] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-md">
-                              <div className="space-y-1.5 p-1">
-                                {thaiHoliday && (
-                                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                                    🇹🇭 {thaiHoliday.name}
-                                  </div>
-                                )}
-                                {companyHoliday && (
-                                  <div className="text-sm font-semibold text-red-600 dark:text-red-400">
-                                    🏢 {companyHoliday.name}
-                                  </div>
-                                )}
-                                {dayEvents.length > 0 && (
-                                  <div className={`mt-1.5 ${thaiHoliday || companyHoliday ? 'pt-2 border-t border-gray-100 dark:border-gray-700' : ''}`}>
-                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">เหตุการณ์วันนี้ ({dayEvents.length}):</div>
-                                    <ul className="space-y-1.5 flex flex-col items-start text-left">
-                                      {dayEvents.map((evt) => {
-                                        const empName = getEmployeeName(evt.employeeId);
-                                        const typeLabel = LEAVE_TYPE_LABELS[evt.leaveType as keyof typeof LEAVE_TYPE_LABELS] || evt.leaveType;
-                                        const durationLabel = evt.leaveDuration === 'morning' ? ' (ครึ่งเช้า)' : evt.leaveDuration === 'afternoon' ? ' (ครึ่งบ่าย)' : '';
-                                        return (
-                                          <li key={evt.id} className="text-xs sm:text-sm flex flex-col leading-tight">
-                                            <span className="font-medium text-gray-800 dark:text-gray-200">{empName}</span>
-                                            <span className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs">• {typeLabel}{durationLabel}</span>
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
+                            <TooltipContent side="bottom" className="max-w-[340px] z-[100] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-md">
+                              {renderDayTooltipContent(dayEvents, dayWorklogs, thaiHoliday, companyHoliday)}
                             </TooltipContent>
                           </Tooltip>
                         ) : dayContent;
@@ -1062,6 +1305,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 return d !== 0 && d !== 6;
               }) : days).map((date, dayIndex) => {
                 const dayEvents = getEventsForDate(date);
+                const dayWorklogs = getWorklogsForDate(date);
                 const thaiHoliday = isHoliday(date);
                 const compHoliday = isCompanyHoliday(date);
                 const isTodayDate = isToday(date);
@@ -1145,6 +1389,44 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           </div>
                         )}
 
+                        {/* Worklogs */}
+                        {shouldShowWorklogDayLoading(date) && (
+                          <div className="space-y-2">
+                            <Skeleton className="h-14 w-full rounded-xl" />
+                            <Skeleton className="h-14 w-full rounded-xl" />
+                          </div>
+                        )}
+
+                        {worklogMode && !worklogsLoading && selectedWorklogAuthorId && dayWorklogs.map((entry) => {
+                          const dayWorklogComplete = getWorklogDayTotalSeconds(dayWorklogs) >= WORKLOG_TARGET_SECONDS;
+                          return (
+                          <div
+                            key={`worklog-${entry.id}`}
+                            className={`flex items-stretch gap-3 rounded-xl border shadow-sm ${worklogCardToneClass(dayWorklogComplete)} ${viewMode === 'day' ? 'p-3 sm:p-4' : 'p-2'}`}
+                          >
+                            <div className={`mt-0.5 p-1.5 rounded-full shadow-sm ${dayWorklogComplete ? 'text-emerald-600 dark:text-emerald-300 bg-white dark:bg-emerald-950' : 'text-gray-600 dark:text-gray-200 bg-white dark:bg-gray-800'}`}>
+                              <Clock3 size={18} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start gap-2">
+                                <p className={`font-semibold text-sm ${dayWorklogComplete ? 'text-emerald-800 dark:text-emerald-200' : 'text-gray-800 dark:text-gray-100'}`}>{entry.issueKey}</p>
+                                <span className={`text-xs shrink-0 ${dayWorklogComplete ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-600 dark:text-gray-300'}`}>{formatWorklogDuration(entry.seconds)}</span>
+                              </div>
+                              <p className="text-sm mt-0.5 text-gray-800 dark:text-gray-100 truncate">{entry.issueSummary}</p>
+                              {entry.comment && (
+                                <p className="text-xs mt-1.5 text-gray-600 dark:text-gray-400 leading-relaxed">{entry.comment}</p>
+                              )}
+                            </div>
+                          </div>
+                          );
+                        })}
+
+                        {worklogMode && !worklogsLoading && !selectedWorklogAuthorId && (
+                          <div className={`flex items-center justify-center text-center rounded-xl border border-dashed border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/20 ${viewMode === 'day' ? 'p-3 sm:p-4 min-h-[60px]' : 'py-2 px-3'}`}>
+                            <p className="text-sm text-indigo-600 dark:text-indigo-300">Select a person to view worklogs</p>
+                          </div>
+                        )}
+
                         {/* Events */}
                         {dayEvents.map((event) => {
                           const employeeName = getEmployeeName(event.employeeId);
@@ -1186,7 +1468,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           );
                         })}
 
-                        {dayEvents.length === 0 && !compHoliday && (
+                        {dayEvents.length === 0 && !compHoliday && !(worklogMode && (worklogsLoading || dayWorklogs.length > 0 || !selectedWorklogAuthorId)) && (
                           <div
                             className={`flex items-center justify-center gap-2 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 ${viewMode === 'day' ? 'p-3 sm:p-4 min-h-[60px]' : 'py-2 px-3'} ${!isAdminAuthenticated ? 'cursor-pointer hover:bg-gray-100/80 dark:hover:bg-gray-700/40' : ''}`}
                             onClick={() => {
