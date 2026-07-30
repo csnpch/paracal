@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { getWorklogs, JiraWorklogResponse } from '@/services/api';
+
+const WORKLOG_LOAD_ERROR_MESSAGE =
+  'ไม่สามารถโหลด Jira worklog ได้ กรุณาตรวจสอบการเชื่อมต่อ VPN แล้วลองใหม่อีกครั้ง';
 
 interface UseWorklogsOptions {
   enabled: boolean;
@@ -42,9 +46,12 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
           fetchedRef.current = { start: startDate, end: endDate, refreshKey };
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
-          setError('ไม่สามารถโหลด Jira worklog ได้ กรุณาลองใหม่อีกครั้ง');
+          const apiError = axios.isAxiosError(error)
+            ? (error.response?.data as { error?: string } | undefined)?.error
+            : undefined;
+          setError(apiError || WORKLOG_LOAD_ERROR_MESSAGE);
         }
       })
       .finally(() => {

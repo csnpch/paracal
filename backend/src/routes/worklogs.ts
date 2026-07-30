@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import config from '../config';
-import { WorklogService } from '../services/worklogService';
+import { WorklogService, WORKLOG_UNAVAILABLE_MESSAGE } from '../services/worklogService';
 import Logger from '../utils/logger';
 
 const worklogService = new WorklogService(config.jiraWorklogApiUrl, config.jiraBrowseBaseUrl);
@@ -19,7 +19,7 @@ export const worklogsRoutes = new Elysia({ prefix: '/worklogs' })
     } catch (error) {
       Logger.error('Unable to fetch Jira worklogs:', error);
       set.status = 502;
-      return { error: 'Jira worklog service is unavailable' };
+      return { error: WORKLOG_UNAVAILABLE_MESSAGE };
     }
   }, {
     query: t.Object({

@@ -1400,16 +1400,23 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         {worklogMode && !worklogsLoading && selectedWorklogAuthorId && dayWorklogs.map((entry) => {
                           const dayWorklogComplete = getWorklogDayTotalSeconds(dayWorklogs) >= WORKLOG_TARGET_SECONDS;
                           return (
-                          <div
+                          <a
                             key={`worklog-${entry.id}`}
-                            className={`flex items-stretch gap-3 rounded-xl border shadow-sm ${worklogCardToneClass(dayWorklogComplete)} ${viewMode === 'day' ? 'p-3 sm:p-4' : 'p-2'}`}
+                            href={getJiraIssueUrl(entry)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                            className={`flex items-stretch gap-3 rounded-xl border shadow-sm transition-colors hover:opacity-95 ${worklogCardToneClass(dayWorklogComplete)} ${viewMode === 'day' ? 'p-3 sm:p-4' : 'p-2'}`}
                           >
                             <div className={`mt-0.5 p-1.5 rounded-full shadow-sm ${dayWorklogComplete ? 'text-emerald-600 dark:text-emerald-300 bg-white dark:bg-emerald-950' : 'text-gray-600 dark:text-gray-200 bg-white dark:bg-gray-800'}`}>
                               <Clock3 size={18} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex justify-between items-start gap-2">
-                                <p className={`font-semibold text-sm ${dayWorklogComplete ? 'text-emerald-800 dark:text-emerald-200' : 'text-gray-800 dark:text-gray-100'}`}>{entry.issueKey}</p>
+                                <p className={`inline-flex items-center gap-1 font-semibold text-sm ${dayWorklogComplete ? 'text-emerald-800 dark:text-emerald-200' : 'text-gray-800 dark:text-gray-100'}`}>
+                                  {entry.issueKey}
+                                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                                </p>
                                 <span className={`text-xs shrink-0 ${dayWorklogComplete ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-600 dark:text-gray-300'}`}>{formatWorklogDuration(entry.seconds)}</span>
                               </div>
                               <p className="text-sm mt-0.5 text-gray-800 dark:text-gray-100 truncate">{entry.issueSummary}</p>
@@ -1417,7 +1424,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                 <p className="text-xs mt-1.5 text-gray-600 dark:text-gray-400 leading-relaxed">{entry.comment}</p>
                               )}
                             </div>
-                          </div>
+                          </a>
                           );
                         })}
 

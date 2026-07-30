@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -47,11 +47,12 @@ const TourTooltip: React.FC<TourTooltipProps> = ({
   onDismiss,
 }) => (
   <div
-    className="absolute w-[min(17rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-2.5 shadow-2xl dark:border-gray-600 dark:bg-gray-800 pointer-events-auto"
+    className="absolute z-[1] w-[min(17rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-2.5 shadow-2xl dark:border-gray-600 dark:bg-gray-800 pointer-events-auto"
     style={{
       top: tooltipTop,
       left: tooltipLeft,
     }}
+    onClick={(event) => event.stopPropagation()}
   >
     <div
       className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-l border-t border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-800"
@@ -76,6 +77,62 @@ const TourTooltip: React.FC<TourTooltipProps> = ({
     </div>
   </div>
 );
+
+interface TourOverlayProps {
+  rect: DOMRect;
+  padding: number;
+  borderRadius: number;
+  onBackdropClick: () => void;
+  children: React.ReactNode;
+}
+
+const TourOverlay: React.FC<TourOverlayProps> = ({
+  rect,
+  padding,
+  borderRadius,
+  onBackdropClick,
+  children,
+}) => {
+  const maskId = useId().replace(/:/g, '');
+
+  return (
+    <div className="fixed inset-0 z-[2000] pointer-events-none">
+      <svg
+        className="absolute inset-0 h-full w-full pointer-events-auto"
+        onClick={onBackdropClick}
+        aria-hidden="true"
+      >
+        <defs>
+          <mask id={maskId}>
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            <rect
+              x={rect.left - padding}
+              y={rect.top - padding}
+              width={rect.width + padding * 2}
+              height={rect.height + padding * 2}
+              rx={borderRadius}
+              fill="black"
+            />
+          </mask>
+        </defs>
+        <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.72)" mask={`url(#${maskId})`} />
+      </svg>
+
+      <div
+        className="pointer-events-none absolute rounded-lg ring-2 ring-white/90 transition-[top,left,width,height] duration-150"
+        style={{
+          top: rect.top - padding,
+          left: rect.left - padding,
+          width: rect.width + padding * 2,
+          height: rect.height + padding * 2,
+          borderRadius,
+        }}
+      />
+
+      {children}
+    </div>
+  );
+};
 
 interface SpotlightTourProps {
   storageKey: string;
@@ -127,18 +184,15 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleResize, true);
 
-    const handleDismiss = () => dismiss();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismiss();
     };
 
-    document.addEventListener('click', handleDismiss, true);
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('scroll', handleResize, true);
-      document.removeEventListener('click', handleDismiss, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [open, dismiss, updateRect]);
@@ -155,21 +209,15 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
       </div>
 
       {open && rect && createPortal(
-        <div className="fixed inset-0 z-[2000] pointer-events-none">
-          <div
-            className="absolute rounded-lg ring-2 ring-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.72)] transition-[top,left,width,height] duration-150"
-            style={{
-              top: rect.top - padding,
-              left: rect.left - padding,
-              width: rect.width + padding * 2,
-              height: rect.height + padding * 2,
-              borderRadius,
-            }}
-          />
-
+        <TourOverlay
+          rect={rect}
+          padding={padding}
+          borderRadius={borderRadius}
+          onBackdropClick={dismiss}
+        >
           <TourTooltip
             title={title}
-            description="กดหรือแตะที่ใดก็ได้เพื่อปิด"
+            description="แตะที่ใดก็ได้เพื่อปิด"
             tooltipTop={tooltipTop}
             tooltipLeft={tooltipLeft}
             onDismiss={(event) => {
@@ -177,7 +225,7 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
               dismiss();
             }}
           />
-        </div>,
+        </TourOverlay>,
         document.body,
       )}
     </>
@@ -266,25 +314,18 @@ export const SpotlightTargetTour: React.FC<SpotlightTargetTourProps> = ({
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleResize, true);
 
-    const handleDismiss = (event: MouseEvent) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest(targetSelector)) return;
-      dismiss();
-    };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismiss();
     };
 
-    document.addEventListener('click', handleDismiss, true);
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('scroll', handleResize, true);
-      document.removeEventListener('click', handleDismiss, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, dismiss, targetSelector, updateRect]);
+  }, [open, dismiss, updateRect]);
 
   if (!open || !rect) return null;
 
@@ -292,21 +333,15 @@ export const SpotlightTargetTour: React.FC<SpotlightTargetTourProps> = ({
   const tooltipTop = rect.bottom + padding + 12;
 
   return createPortal(
-    <div className="fixed inset-0 z-[2000] pointer-events-none">
-      <div
-        className="absolute rounded-lg ring-2 ring-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.72)] transition-[top,left,width,height] duration-150"
-        style={{
-          top: rect.top - padding,
-          left: rect.left - padding,
-          width: rect.width + padding * 2,
-          height: rect.height + padding * 2,
-          borderRadius,
-        }}
-      />
-
+    <TourOverlay
+      rect={rect}
+      padding={padding}
+      borderRadius={borderRadius}
+      onBackdropClick={dismiss}
+    >
       <TourTooltip
         title={title}
-        description="กดหรือแตะที่ใดก็ได้เพื่อปิด"
+        description="แตะที่ใดก็ได้เพื่อปิด"
         tooltipTop={tooltipTop}
         tooltipLeft={tooltipLeft}
         onDismiss={(event) => {
@@ -314,7 +349,7 @@ export const SpotlightTargetTour: React.FC<SpotlightTargetTourProps> = ({
           dismiss();
         }}
       />
-    </div>,
+    </TourOverlay>,
     document.body,
   );
 };
@@ -323,8 +358,12 @@ interface FeatureTourWelcomeProps {
   onStart: () => void;
 }
 
+const WELCOME_DISMISS_DELAY_SEC = 5;
+
 export const FeatureTourWelcome: React.FC<FeatureTourWelcomeProps> = ({ onStart }) => {
   const [open, setOpen] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(WELCOME_DISMISS_DELAY_SEC);
+  const canDismiss = secondsRemaining <= 0;
 
   const dismiss = useCallback(() => {
     markOnboardingSeen(FEATURE_TOUR_WELCOME_KEY);
@@ -338,31 +377,42 @@ export const FeatureTourWelcome: React.FC<FeatureTourWelcomeProps> = ({ onStart 
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || canDismiss) return;
 
-    const handleDismiss = () => dismiss();
+    const interval = window.setInterval(() => {
+      setSecondsRemaining((current) => current - 1);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [open, canDismiss]);
+
+  useEffect(() => {
+    if (!open || !canDismiss) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismiss();
     };
 
-    document.addEventListener('click', handleDismiss, true);
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('click', handleDismiss, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, dismiss]);
+  }, [open, canDismiss, dismiss]);
 
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 px-4">
+    <div
+      className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 px-4"
+      onClick={canDismiss ? dismiss : undefined}
+    >
       <div
         className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 text-center shadow-2xl dark:border-gray-600 dark:bg-gray-800"
         role="dialog"
         aria-modal="true"
         aria-labelledby="feature-tour-welcome-title"
+        onClick={(event) => event.stopPropagation()}
       >
         <p className="text-[11px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
           What&apos;s new
@@ -373,8 +423,13 @@ export const FeatureTourWelcome: React.FC<FeatureTourWelcomeProps> = ({ onStart 
         >
           มีฟีเจอร์ใหม่ — สำหรับดู Jira Worklog
         </h2>
-        <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-          กดหรือแตะที่ใดก็ได้เพื่อเริ่มทัวร์
+        <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+          ต้องเชื่อมต่อ VPN ก่อนจึงจะใช้งานฟีเจอร์นี้ได้
+        </p>
+        <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          {canDismiss
+            ? 'แตะที่ใดก็ได้เพื่อเริ่มทัวร์'
+            : `เริ่มทัวร์ได้ใน ${secondsRemaining} วินาที`}
         </p>
       </div>
     </div>,
