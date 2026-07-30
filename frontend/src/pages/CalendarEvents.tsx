@@ -11,10 +11,12 @@ import { Layout } from '@/components/Layout';
 import type { CalendarMode } from '@/components/Navbar';
 import { FeatureTourWelcome, SpotlightTargetTour } from '@/components/SpotlightTour';
 import {
+  CALENDAR_MODE_TOUR_KEY,
   FEATURE_TOUR_WELCOME_KEY,
   hasSeenOnboarding,
   JIRA_WORKLOG_PERSON_TOUR_KEY,
   JIRA_WORKLOG_RELOAD_TOUR_KEY,
+  markOnboardingSeen,
 } from '@/lib/onboarding';
 import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHolidayService';
 import { useWorklogs } from '@/hooks/useWorklogs';
@@ -49,6 +51,7 @@ const CalendarEvents = () => {
   const [jiraPersonTourDone, setJiraPersonTourDone] = useState(() => hasSeenOnboarding(JIRA_WORKLOG_PERSON_TOUR_KEY));
   const [featureTourStarted, setFeatureTourStarted] = useState(() => hasSeenOnboarding(FEATURE_TOUR_WELCOME_KEY));
   const [reloadTourActive, setReloadTourActive] = useState(false);
+  const [personTourDismissSignal, setPersonTourDismissSignal] = useState(0);
   const [reloadTourDismissSignal, setReloadTourDismissSignal] = useState(0);
   const [mockWorklogsLoading, setMockWorklogsLoading] = useState(false);
 
@@ -164,11 +167,19 @@ const CalendarEvents = () => {
   const handleWorklogAuthorChange = useCallback((authorId: string) => {
     setSelectedWorklogAuthorId(authorId);
     setStoredWorklogAuthorId(authorId);
+    setPersonTourDismissSignal((current) => current + 1);
+  }, []);
+
+  const handleWorklogAuthorSelectOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setPersonTourDismissSignal((current) => current + 1);
+    }
   }, []);
 
   const handleCalendarModeChange = (mode: CalendarMode) => {
     setCalendarMode(mode);
     if (mode === 'worklogs') {
+      markOnboardingSeen(CALENDAR_MODE_TOUR_KEY);
       setFilteredEmployeeIds([]);
       setSelectedWorklogAuthorId((current) => current || getStoredWorklogAuthorId());
     }
@@ -533,6 +544,7 @@ const CalendarEvents = () => {
         enabled={featureTourStarted && calendarMode === 'worklogs'}
         targetSelector='[data-tour="jira-worklog-person-select"]'
         title="เลือกชื่อเพื่อดู worklog บนปฏิทิน"
+        dismissSignal={personTourDismissSignal}
         onComplete={() => setJiraPersonTourDone(true)}
       />
       <SpotlightTargetTour
@@ -574,6 +586,7 @@ const CalendarEvents = () => {
                     worklogsLoading={showWorklogsLoading}
                     suppressEvents={suppressWorklogEvents}
                     onWorklogAuthorChange={handleWorklogAuthorChange}
+                    onWorklogAuthorSelectOpenChange={handleWorklogAuthorSelectOpenChange}
                     onViewModeChange={handleViewModeChange}
                     onDateClick={handleDateClick}
                     onCreateEvent={handleCreateEvent}

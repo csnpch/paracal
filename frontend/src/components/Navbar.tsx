@@ -144,8 +144,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               {currentPage === 'calendar-events' && calendarMode && onCalendarModeChange && (
                 <SpotlightTour
                   storageKey={CALENDAR_MODE_TOUR_KEY}
-                  enabled={featureTourStarted}
-                  title="ใช้สวิตช์นี้เพื่อดูปฏิทินเหตุการณ์ปกติ หรือเปิดโหมด Jira Worklog"
+                  enabled={featureTourStarted && calendarMode !== 'worklogs'}
+                  title="ใช้สวิตช์นี้เพื่อดูปฏิทินเหตุการณ์ปกติ หรือเปิดดู Jira Worklog"
                 >
                   <AntdSwitch
                     checked={calendarMode === 'worklogs'}

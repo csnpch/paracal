@@ -31,6 +31,7 @@ interface CalendarGridProps {
   worklogsLoading?: boolean;
   suppressEvents?: boolean;
   onWorklogAuthorChange?: (authorId: string) => void;
+  onWorklogAuthorSelectOpenChange?: (open: boolean) => void;
   onViewModeChange?: (viewMode: ViewMode) => void;
   onDateClick: (date: Date) => void;
   onCreateEvent: (date: Date, dateRange?: Date[]) => void;
@@ -65,6 +66,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   worklogsLoading = false,
   suppressEvents = false,
   onWorklogAuthorChange,
+  onWorklogAuthorSelectOpenChange,
   onViewModeChange,
   onDateClick,
   onCreateEvent,
@@ -751,6 +753,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     <Select
       value={selectedWorklogAuthorId || undefined}
       onValueChange={onWorklogAuthorChange}
+      onOpenChange={onWorklogAuthorSelectOpenChange}
       disabled={worklogsLoading}
     >
       <SelectTrigger

@@ -209,6 +209,12 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
   }, [enabled, storageKey]);
 
   useEffect(() => {
+    if (enabled || !open) return;
+    markOnboardingSeen(storageKey);
+    setOpen(false);
+  }, [enabled, open, storageKey]);
+
+  useEffect(() => {
     if (!open) return;
 
     updateRect();
@@ -274,6 +280,7 @@ interface SpotlightTargetTourProps {
   padding?: number;
   borderRadius?: number;
   dismissSignal?: number;
+  dismissOnTargetInteraction?: boolean;
   onComplete?: () => void;
   onOpenChange?: (open: boolean) => void;
 }
@@ -286,6 +293,7 @@ export const SpotlightTargetTour: React.FC<SpotlightTargetTourProps> = ({
   padding = 8,
   borderRadius = 10,
   dismissSignal = 0,
+  dismissOnTargetInteraction = false,
   onComplete,
   onOpenChange,
 }) => {
@@ -307,6 +315,23 @@ export const SpotlightTargetTour: React.FC<SpotlightTargetTourProps> = ({
     if (!dismissSignal) return;
     if (open) dismiss();
   }, [dismissSignal, open, dismiss]);
+
+  useEffect(() => {
+    if (!open || !dismissOnTargetInteraction) return;
+
+    const handleTargetInteraction = () => dismiss();
+    const targets = Array.from(document.querySelectorAll(targetSelector));
+
+    targets.forEach((target) => {
+      target.addEventListener('click', handleTargetInteraction);
+    });
+
+    return () => {
+      targets.forEach((target) => {
+        target.removeEventListener('click', handleTargetInteraction);
+      });
+    };
+  }, [open, dismiss, dismissOnTargetInteraction, targetSelector]);
 
   useEffect(() => {
     if (!enabled || hasSeenOnboarding(storageKey)) return;
