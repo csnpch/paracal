@@ -20,6 +20,7 @@ import {
 } from '@/lib/onboarding';
 import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHolidayService';
 import { useWorklogs } from '@/hooks/useWorklogs';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { findEmployeeByAuthorName } from '@/lib/nameMatch';
 import { getStoredWorklogAuthorId, setStoredWorklogAuthorId } from '@/lib/worklog';
 import { getStoredCalendarState, setStoredCalendarState } from '@/lib/calendarStorage';
@@ -49,6 +50,7 @@ const readInitialCalendarState = (() => {
 
 const CalendarEvents = () => {
   const { isAdminAuthenticated } = useAuth();
+  const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(() => readInitialCalendarState().currentDate);
   const [viewMode, setViewMode] = useState<ViewMode>(() => readInitialCalendarState().viewMode);
   const [calendarMode, setCalendarMode] = useState<CalendarMode>(() => readInitialCalendarState().calendarMode);
@@ -556,13 +558,14 @@ const CalendarEvents = () => {
       onWorklogRefresh={handleWorklogRefresh}
       worklogsLoading={showWorklogsLoading}
       featureTourStarted={featureTourStarted}
+      onboardingEnabled={!isMobile}
     >
-      {!featureTourStarted && (
+      {!isMobile && !featureTourStarted && (
         <FeatureTourWelcome onStart={() => setFeatureTourStarted(true)} />
       )}
       <SpotlightTargetTour
         storageKey={JIRA_WORKLOG_PERSON_TOUR_KEY}
-        enabled={featureTourStarted && calendarMode === 'worklogs'}
+        enabled={!isMobile && featureTourStarted && calendarMode === 'worklogs'}
         targetSelector='[data-tour="jira-worklog-person-select"]'
         title="เลือกชื่อเพื่อดู worklog บนปฏิทิน"
         dismissSignal={personTourDismissSignal}
@@ -570,13 +573,21 @@ const CalendarEvents = () => {
       />
       <SpotlightTargetTour
         storageKey={JIRA_WORKLOG_RELOAD_TOUR_KEY}
-        enabled={featureTourStarted && calendarMode === 'worklogs' && !!selectedWorklogAuthorId && jiraPersonTourDone}
+        enabled={!isMobile && featureTourStarted && calendarMode === 'worklogs' && !!selectedWorklogAuthorId && jiraPersonTourDone}
         targetSelector='[data-tour="jira-worklog-reload"]'
         title="ปุ่มสำหรับดึงข้อมูล jira ล่าสุด"
         dismissSignal={reloadTourDismissSignal}
         onOpenChange={setReloadTourActive}
       />
       <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-8">
+        {isMobile && calendarMode === 'worklogs' && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            ฟีเจอร์ Jira Worklog ต้องเชื่อมต่อ VPN ก่อนจึงจะใช้งานได้
+          </div>
+        )}
         {(error || (calendarMode === 'worklogs' && worklogsError)) && (
           <div className="bg-red-50 dark:bg-red-800/30 border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4">
             Error: {error || worklogsError}

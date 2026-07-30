@@ -10,6 +10,7 @@ interface LayoutProps {
   onWorklogRefresh?: () => void;
   worklogsLoading?: boolean;
   featureTourStarted?: boolean;
+  onboardingEnabled?: boolean;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -20,6 +21,7 @@ export const Layout: React.FC<LayoutProps> = ({
   onWorklogRefresh,
   worklogsLoading,
   featureTourStarted = true,
+  onboardingEnabled = true,
 }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700 flex flex-col">
@@ -30,6 +32,7 @@ export const Layout: React.FC<LayoutProps> = ({
         onWorklogRefresh={onWorklogRefresh}
         worklogsLoading={worklogsLoading}
         featureTourStarted={featureTourStarted}
+        onboardingEnabled={onboardingEnabled}
       />
       <main className="flex-1">
         {children}

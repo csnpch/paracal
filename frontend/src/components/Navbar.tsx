@@ -40,6 +40,7 @@ interface NavbarProps {
   onWorklogRefresh?: () => void;
   worklogsLoading?: boolean;
   featureTourStarted?: boolean;
+  onboardingEnabled?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -49,6 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onWorklogRefresh,
   worklogsLoading = false,
   featureTourStarted = true,
+  onboardingEnabled = true,
 }) => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -144,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {currentPage === 'calendar-events' && calendarMode && onCalendarModeChange && (
                 <SpotlightTour
                   storageKey={CALENDAR_MODE_TOUR_KEY}
-                  enabled={featureTourStarted && calendarMode !== 'worklogs'}
+                  enabled={onboardingEnabled && featureTourStarted && calendarMode !== 'worklogs'}
                   title="ใช้สวิตช์นี้เพื่อดูปฏิทินเหตุการณ์ปกติ หรือเปิดดู Jira Worklog"
                 >
                   <AntdSwitch

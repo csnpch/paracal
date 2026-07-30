@@ -210,9 +210,8 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
 
   useEffect(() => {
     if (enabled || !open) return;
-    markOnboardingSeen(storageKey);
     setOpen(false);
-  }, [enabled, open, storageKey]);
+  }, [enabled, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -364,6 +363,12 @@ export const SpotlightTargetTour: React.FC<SpotlightTargetTourProps> = ({
   }, [enabled, onOpenChange, storageKey, targetSelector]);
 
   useEffect(() => {
+    if (enabled || !open) return;
+    setOpen(false);
+    onOpenChange?.(false);
+  }, [enabled, open, onOpenChange]);
+
+  useEffect(() => {
     if (!open) return;
 
     updateRect();
@@ -483,7 +488,7 @@ export const FeatureTourWelcome: React.FC<FeatureTourWelcomeProps> = ({ onStart 
           id="feature-tour-welcome-title"
           className="mt-2 text-base font-semibold text-gray-900 dark:text-white"
         >
-          มีฟีเจอร์ใหม่ — สำหรับดู Jira Worklog
+          ฟีเจอร์ใหม่ — ดู Jira Worklog
         </h2>
         <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
           ต้องเชื่อมต่อ VPN ก่อนจึงจะใช้งานฟีเจอร์นี้ได้
