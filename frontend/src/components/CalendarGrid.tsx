@@ -12,7 +12,8 @@ import { ViewMode } from '@/pages/CalendarEvents';
 import { Event } from '@/services/apiDatabase';
 import type { JiraWorklogAuthor, JiraWorklogEntry } from '@/services/api';
 import { cn, DAYS_OF_WEEK, MONTHS, LEAVE_TYPE_COLORS_SOLID, LEAVE_TYPE_LABELS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
-import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
+import { isViewingCurrentCalendarPeriod } from '@/lib/calendarStorage';
+import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, shouldShowWorklogDeficitBorder, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
 import { toast } from '@/hooks/use-toast';
 import moment from 'moment';
 
@@ -119,6 +120,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   const year = moment(currentDate).year();
   const month = moment(currentDate).month();
+  const showTodayJumpHighlight = !isViewingCurrentCalendarPeriod(currentDate, viewMode);
 
   // Calculate the range of years that will be visible in the calendar grid
   let startDate = moment(currentDate);
@@ -242,6 +244,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     if (isWeekend(date) || isCompanyHoliday(date)) return false;
     return true;
   };
+
+  const hasWorklogDeficitBorder = (date: Date, dayWorklogs: JiraWorklogEntry[]) =>
+    worklogMode &&
+    !worklogsLoading &&
+    !!selectedWorklogAuthorId &&
+    shouldShowWorklogDeficitBorder(date, dayWorklogs, { isWeekend, isCompanyHoliday });
 
   const renderWorklogChip = (entry: JiraWorklogEntry, dayComplete: boolean, compact = true) => (
     <div
@@ -855,7 +863,17 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     {showWeekends ? 'ซ่อน ส.-อา.' : 'แสดง ส.-อา.'}
                   </span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={onTodayClick} className="h-6 sm:h-7 px-2 text-xs sm:text-sm text-gray-500 hover:text-gray-700 dark:text-white dark:hover:text-gray-300 border-gray-200 dark:border-gray-600">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onTodayClick}
+                  className={cn(
+                    'h-6 sm:h-7 px-2 text-xs sm:text-sm',
+                    showTodayJumpHighlight
+                      ? 'bg-blue-700 hover:bg-blue-800 text-white border-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 dark:border-blue-700 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-white dark:hover:text-gray-300 border-gray-200 dark:border-gray-600',
+                  )}
+                >
                   วันนี้
                 </Button>
                 <Button variant="outline" size="sm" onClick={onPrevDate} className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-gray-500 hover:text-gray-700 dark:text-white dark:hover:text-gray-300 border-gray-200 dark:border-gray-600">
@@ -1100,6 +1118,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         const isTempRangeActive = selectingEndDateFor && tempEndDateFor && moment(date).isBetween(moment(selectingEndDateFor), moment(tempEndDateFor), 'day', '[]');
                         const isActiveState = isDateInSelectedRange(date) || isDateInHoverRange(date) || isSelectingStart || isTempRangeActive;
 
+                        if (
+                          hasWorklogDeficitBorder(date, dayWorklogs) &&
+                          !isHighlighted &&
+                          !isActiveState
+                        ) {
+                          borderColor = 'border-red-500 dark:border-red-500 ring-2 ring-red-500/30 dark:ring-red-500/30';
+                        }
+
                         const dayContent = (
                           <div
                             key={`${weekIndex}-${index}`}
@@ -1315,6 +1341,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 const isTomorrow = moment(date).isSame(moment().add(1, 'day'), 'day');
                 const dateKey = moment(date).format('YYYY-MM-DD');
                 const isPopoverOpenForThisDate = popoverOpen && selectedPopoverDate && moment(selectedPopoverDate).isSame(moment(date), 'day');
+                const showWorklogDeficitBorder = hasWorklogDeficitBorder(date, dayWorklogs);
 
                 // In day mode, format the header to clearly distinguish today vs tomorrow
                 let dayBadge = null;
@@ -1354,7 +1381,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 return (
                   <div
                     key={dateKey}
-                    className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm overflow-visible transition-all duration-300 ${viewMode === 'day' ? 'flex-1 p-3 sm:p-5' : 'p-2 sm:p-3'} ${isTodayDate ? 'border-blue-500 dark:border-blue-400 ring-4 ring-blue-500/10 shadow-lg bg-blue-50/30 dark:bg-blue-900/10 scale-[1.01]' : 'border-gray-200 dark:border-gray-700'}`}
+                    className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm overflow-visible transition-all duration-300 ${viewMode === 'day' ? 'flex-1 p-3 sm:p-5' : 'p-2 sm:p-3'} ${isTodayDate ? 'border-blue-500 dark:border-blue-400 ring-4 ring-blue-500/10 shadow-lg bg-blue-50/30 dark:bg-blue-900/10 scale-[1.01]' : showWorklogDeficitBorder ? 'border-red-500 dark:border-red-500 ring-2 ring-red-500/30 dark:ring-red-500/30' : 'border-gray-200 dark:border-gray-700'}`}
                   >
                     <div className="h-full">
 

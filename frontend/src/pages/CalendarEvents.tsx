@@ -22,6 +22,7 @@ import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHo
 import { useWorklogs } from '@/hooks/useWorklogs';
 import { findEmployeeByAuthorName } from '@/lib/nameMatch';
 import { getStoredWorklogAuthorId, setStoredWorklogAuthorId } from '@/lib/worklog';
+import { getStoredCalendarState, setStoredCalendarState } from '@/lib/calendarStorage';
 import type { JiraWorklogEntry } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { LEAVE_TYPE_LABELS } from '@/lib/utils';
@@ -30,10 +31,25 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export type ViewMode = 'month' | 'week' | 'day';
 
+const readInitialCalendarState = (() => {
+  let cached: { currentDate: Date; viewMode: ViewMode } | null = null;
+
+  return () => {
+    if (cached) return cached;
+
+    const stored = getStoredCalendarState();
+    cached = {
+      currentDate: stored?.currentDate ?? moment().toDate(),
+      viewMode: (stored?.viewMode ?? 'month') as ViewMode,
+    };
+    return cached;
+  };
+})();
+
 const CalendarEvents = () => {
   const { isAdminAuthenticated } = useAuth();
-  const [currentDate, setCurrentDate] = useState(moment().toDate());
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [currentDate, setCurrentDate] = useState(() => readInitialCalendarState().currentDate);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => readInitialCalendarState().viewMode);
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('events');
   const [selectedWorklogAuthorId, setSelectedWorklogAuthorId] = useState(getStoredWorklogAuthorId);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,6 +70,10 @@ const CalendarEvents = () => {
   const [personTourDismissSignal, setPersonTourDismissSignal] = useState(0);
   const [reloadTourDismissSignal, setReloadTourDismissSignal] = useState(0);
   const [mockWorklogsLoading, setMockWorklogsLoading] = useState(false);
+
+  useEffect(() => {
+    setStoredCalendarState(currentDate, viewMode);
+  }, [currentDate, viewMode]);
 
   const {
     employees,

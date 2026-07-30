@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { normalizeWorklogEntries } from '@/lib/worklog';
 import { getWorklogs, JiraWorklogResponse } from '@/services/api';
 
 const WORKLOG_LOAD_ERROR_MESSAGE =
   'ไม่สามารถโหลด Jira worklog ได้ กรุณาตรวจสอบการเชื่อมต่อ VPN แล้วลองใหม่อีกครั้ง';
+
+const WORKLOG_FETCH_DEBOUNCE_MS = 3000;
 
 interface UseWorklogsOptions {
   enabled: boolean;
@@ -11,57 +14,86 @@ interface UseWorklogsOptions {
   endDate: string;
 }
 
+const toCacheKey = (startDate: string, endDate: string) => `${startDate}:${endDate}`;
+
+const normalizeWorklogResponse = (
+  response: JiraWorklogResponse,
+  startDate: string,
+  endDate: string,
+): JiraWorklogResponse => ({
+  ...response,
+  entries: normalizeWorklogEntries(response.entries, startDate, endDate),
+});
+
 export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions) => {
   const [data, setData] = useState<JiraWorklogResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const fetchedRef = useRef<{ start: string; end: string; refreshKey: number } | null>(null);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
+  const cacheRef = useRef<Map<string, JiraWorklogResponse>>(new Map());
+  const rangeRef = useRef({ startDate, endDate });
+  const skipDebounceRef = useRef(false);
+
+  rangeRef.current = { startDate, endDate };
 
   const refetch = useCallback(() => {
-    setRefreshKey((key) => key + 1);
+    const { startDate: start, endDate: end } = rangeRef.current;
+    cacheRef.current.delete(toCacheKey(start, end));
+    skipDebounceRef.current = true;
+    setFetchTrigger((trigger) => trigger + 1);
   }, []);
 
   useEffect(() => {
-    if (!enabled) return;
-
-    const isCached =
-      fetchedRef.current?.start === startDate &&
-      fetchedRef.current?.end === endDate &&
-      fetchedRef.current?.refreshKey === refreshKey;
-
-    if (isCached) {
+    if (!enabled) {
       setLoading(false);
       return;
     }
 
+    const cacheKey = toCacheKey(startDate, endDate);
+    const cached = cacheRef.current.get(cacheKey);
+
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let active = true;
+    setData(null);
     setLoading(true);
     setError(null);
 
-    getWorklogs({ start: startDate, end: endDate })
-      .then((response) => {
-        if (active) {
-          setData(response);
-          fetchedRef.current = { start: startDate, end: endDate, refreshKey };
-        }
-      })
-      .catch((error) => {
-        if (active) {
-          const apiError = axios.isAxiosError(error)
-            ? (error.response?.data as { error?: string } | undefined)?.error
+    const debounceMs = skipDebounceRef.current ? 0 : WORKLOG_FETCH_DEBOUNCE_MS;
+    skipDebounceRef.current = false;
+
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+
+      getWorklogs({ start: startDate, end: endDate })
+        .then((response) => {
+          if (!active) return;
+          const normalized = normalizeWorklogResponse(response, startDate, endDate);
+          cacheRef.current.set(cacheKey, normalized);
+          setData(normalized);
+        })
+        .catch((fetchError) => {
+          if (!active) return;
+          const apiError = axios.isAxiosError(fetchError)
+            ? (fetchError.response?.data as { error?: string } | undefined)?.error
             : undefined;
           setError(apiError || WORKLOG_LOAD_ERROR_MESSAGE);
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, debounceMs);
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, [enabled, startDate, endDate, refreshKey]);
+  }, [enabled, startDate, endDate, fetchTrigger]);
 
   return { data, loading, error, refetch };
 };

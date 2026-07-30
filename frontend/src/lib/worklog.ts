@@ -34,5 +34,53 @@ export const formatWorklogHours = (seconds: number) => {
 export const getWorklogDayTotalSeconds = (entries: JiraWorklogEntry[]) =>
   entries.reduce((sum, entry) => sum + entry.seconds, 0);
 
+export const isPastCalendarDay = (date: Date) => {
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return day < today;
+};
+
+export const isWorklogDayBelowTarget = (entries: JiraWorklogEntry[]) =>
+  getWorklogDayTotalSeconds(entries) < WORKLOG_TARGET_SECONDS;
+
+export const shouldShowWorklogDeficitBorder = (
+  date: Date,
+  entries: JiraWorklogEntry[],
+  options: {
+    isWeekend: (date: Date) => boolean;
+    isCompanyHoliday: (date: Date) => boolean;
+  },
+) => {
+  if (!isPastCalendarDay(date)) return false;
+  if (options.isWeekend(date) || options.isCompanyHoliday(date)) return false;
+  return isWorklogDayBelowTarget(entries);
+};
+
+export const filterWorklogEntriesInRange = (
+  entries: JiraWorklogEntry[],
+  startDate: string,
+  endDate: string,
+): JiraWorklogEntry[] =>
+  entries.filter((entry) => entry.date >= startDate && entry.date <= endDate);
+
+export const dedupeWorklogEntriesById = (entries: JiraWorklogEntry[]): JiraWorklogEntry[] => {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    if (seen.has(entry.id)) return false;
+    seen.add(entry.id);
+    return true;
+  });
+};
+
+/** Clamp to query range and drop duplicate worklog ids before cache/display. */
+export const normalizeWorklogEntries = (
+  entries: JiraWorklogEntry[],
+  startDate: string,
+  endDate: string,
+): JiraWorklogEntry[] =>
+  dedupeWorklogEntriesById(filterWorklogEntriesInRange(entries, startDate, endDate));
+
 export const getJiraIssueUrl = (entry: JiraWorklogEntry) =>
   entry.issueUrl || `${JIRA_BROWSE_BASE_URL}/${entry.issueKey}`;
