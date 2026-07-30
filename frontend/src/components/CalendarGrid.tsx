@@ -13,7 +13,7 @@ import { Event } from '@/services/apiDatabase';
 import type { JiraWorklogAuthor, JiraWorklogEntry } from '@/services/api';
 import { cn, DAYS_OF_WEEK, MONTHS, LEAVE_TYPE_COLORS_SOLID, LEAVE_TYPE_LABELS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
 import { isViewingCurrentCalendarPeriod } from '@/lib/calendarStorage';
-import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, shouldShowWorklogDeficitBorder, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
+import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, getWorklogDeficitLabel, shouldShowWorklogDeficitBorder, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
 import { toast } from '@/hooks/use-toast';
 import moment from 'moment';
 
@@ -250,6 +250,16 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     !worklogsLoading &&
     !!selectedWorklogAuthorId &&
     shouldShowWorklogDeficitBorder(date, dayWorklogs, { isWeekend, isCompanyHoliday });
+
+  const renderWorklogDeficitLabel = (date: Date, dayWorklogs: JiraWorklogEntry[]) => {
+    if (!hasWorklogDeficitBorder(date, dayWorklogs)) return null;
+
+    return (
+      <p className="mt-1 text-[9px] sm:text-[10px] font-semibold text-red-600 dark:text-red-400 leading-tight text-center truncate">
+        {getWorklogDeficitLabel(dayWorklogs)}
+      </p>
+    );
+  };
 
   const renderWorklogChip = (entry: JiraWorklogEntry, dayComplete: boolean, compact = true) => (
     <div
@@ -1072,9 +1082,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         } else { // For current month days
                           // Apply weekend styling first if applicable
                           if (weekend) {
-                            bgColor = 'bg-red-50 dark:bg-red-800/30';
-                            textColor = 'text-red-700 dark:text-red-300';
-                            borderColor = 'border-red-200 dark:border-red-600';
+                            if (worklogMode) {
+                              bgColor = 'bg-gray-50 dark:bg-gray-800/50';
+                              textColor = 'text-gray-500 dark:text-gray-400';
+                              borderColor = 'border-gray-200 dark:border-gray-600';
+                            } else {
+                              bgColor = 'bg-red-50 dark:bg-red-800/30';
+                              textColor = 'text-red-700 dark:text-red-300';
+                              borderColor = 'border-red-200 dark:border-red-600';
+                            }
                           } else if (companyHoliday) {
                             // Company holidays get red styling (old Thai holiday colors)
                             textColor = 'text-red-600 dark:text-red-500';
@@ -1181,6 +1197,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                               </div>
                               );
                             })()}
+
+                            {renderWorklogDeficitLabel(date, dayWorklogs)}
 
                             {worklogMode && !worklogsLoading && !selectedWorklogAuthorId && !isOtherMonth && (
                               <p className="mt-1 text-[9px] text-indigo-500/80 dark:text-indigo-300/70 leading-tight">
@@ -1457,6 +1475,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           </a>
                           );
                         })}
+
+                        {renderWorklogDeficitLabel(date, dayWorklogs)}
 
                         {worklogMode && !worklogsLoading && !selectedWorklogAuthorId && (
                           <div className={`flex items-center justify-center text-center rounded-xl border border-dashed border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/20 ${viewMode === 'day' ? 'p-3 sm:p-4 min-h-[60px]' : 'py-2 px-3'}`}>

@@ -58,6 +58,9 @@ export const shouldShowWorklogDeficitBorder = (
   return isWorklogDayBelowTarget(entries);
 };
 
+export const getWorklogDeficitLabel = (entries: JiraWorklogEntry[]) =>
+  entries.length === 0 ? 'ยังไม่ logwork' : 'ยังไม่ครบ 8ชม.';
+
 export const filterWorklogEntriesInRange = (
   entries: JiraWorklogEntry[],
   startDate: string,
