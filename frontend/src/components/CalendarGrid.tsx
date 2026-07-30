@@ -795,11 +795,20 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         )}
       </SelectTrigger>
       <SelectContent>
-        {worklogAuthors.map((author) => (
-          <SelectItem key={author.id} value={author.id}>
-            {author.name}
-          </SelectItem>
-        ))}
+        {worklogAuthors.length > 0 ? (
+          worklogAuthors.map((author) => (
+            <SelectItem key={author.id} value={author.id}>
+              {author.name}
+            </SelectItem>
+          ))
+        ) : (
+          <div className="px-3 py-4 text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            ไม่พบรายชื่อในช่วงนี้
+            <span className="mt-1 block text-[11px] text-gray-400 dark:text-gray-500">
+              ตรวจสอบ VPN แล้วกด Reload
+            </span>
+          </div>
+        )}
       </SelectContent>
     </Select>
   );

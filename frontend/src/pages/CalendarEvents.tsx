@@ -559,6 +559,7 @@ const CalendarEvents = () => {
       worklogsLoading={showWorklogsLoading}
       featureTourStarted={featureTourStarted}
       onboardingEnabled={!isMobile}
+      showMobileJiraVpnNotice={isMobile && calendarMode === 'worklogs'}
     >
       {!isMobile && !featureTourStarted && (
         <FeatureTourWelcome onStart={() => setFeatureTourStarted(true)} />
@@ -580,15 +581,20 @@ const CalendarEvents = () => {
         onOpenChange={setReloadTourActive}
       />
       <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-8">
-        {isMobile && calendarMode === 'worklogs' && (
+        {isMobile && calendarMode === 'worklogs' && worklogsError && (
           <div
             role="alert"
-            className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+            className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
           >
-            ฟีเจอร์ Jira Worklog ต้องเชื่อมต่อ VPN ก่อนจึงจะใช้งานได้
+            โหลด Jira worklog ไม่สำเร็จ: {worklogsError}
           </div>
         )}
-        {(error || (calendarMode === 'worklogs' && worklogsError)) && (
+        {isMobile && calendarMode !== 'worklogs' && error && (
+          <div className="bg-red-50 dark:bg-red-800/30 border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4">
+            Error: {error}
+          </div>
+        )}
+        {!isMobile && (error || (calendarMode === 'worklogs' && worklogsError)) && (
           <div className="bg-red-50 dark:bg-red-800/30 border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4">
             Error: {error || worklogsError}
           </div>

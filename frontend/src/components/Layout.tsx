@@ -11,6 +11,7 @@ interface LayoutProps {
   worklogsLoading?: boolean;
   featureTourStarted?: boolean;
   onboardingEnabled?: boolean;
+  showMobileJiraVpnNotice?: boolean;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -22,6 +23,7 @@ export const Layout: React.FC<LayoutProps> = ({
   worklogsLoading,
   featureTourStarted = true,
   onboardingEnabled = true,
+  showMobileJiraVpnNotice = false,
 }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700 flex flex-col">
@@ -34,6 +36,14 @@ export const Layout: React.FC<LayoutProps> = ({
         featureTourStarted={featureTourStarted}
         onboardingEnabled={onboardingEnabled}
       />
+      {showMobileJiraVpnNotice && (
+        <div
+          role="status"
+          className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"
+        >
+          ฟีเจอร์ Jira Worklog ต้องเชื่อมต่อ VPN ก่อนจึงจะใช้งานได้
+        </div>
+      )}
       <main className="flex-1">
         {children}
       </main>
