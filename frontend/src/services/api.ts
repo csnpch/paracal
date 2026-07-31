@@ -139,48 +139,11 @@ export const getEventsByEmployee = async (params: {
   return apiClient.get<EmployeeEvent[]>(endpoint);
 };
 
-export interface JiraWorklogAuthor {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-}
-
-export interface JiraWorklogEntry {
-  id: string;
-  projectKey: string;
-  issueKey: string;
-  issueSummary: string;
-  authorId: string;
-  authorName: string;
-  avatarUrl?: string;
-  started: string;
-  date: string;
-  seconds: number;
-  comment?: string;
-  issueUrl?: string;
-}
-
-export interface JiraWorklogResponse {
-  authors: JiraWorklogAuthor[];
-  entries: JiraWorklogEntry[];
-}
-
-export const getWorklogs = async (params: {
-  start: string;
-  end: string;
-  project?: string;
-  signal?: AbortSignal;
-}): Promise<JiraWorklogResponse> => {
-  const query = new URLSearchParams({
-    start: params.start,
-    end: params.end,
-    project: params.project || 'ALL',
-  });
-
-  return apiClient.get<JiraWorklogResponse>(`/worklogs?${query.toString()}`, {
-    signal: params.signal,
-  });
-};
+export type {
+  JiraWorklogAuthor,
+  JiraWorklogEntry,
+  JiraWorklogResponse,
+} from '../../../shared/jiraWorklog';
 
 export interface CronjobConfig {
   id: number;

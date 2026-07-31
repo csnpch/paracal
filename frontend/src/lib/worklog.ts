@@ -1,7 +1,7 @@
-import type { JiraWorklogEntry } from '@/services/api';
+import { JIRA_BROWSE_BASE_URL, type JiraWorklogEntry } from '../../../shared/jiraWorklog';
 
 export const WORKLOG_TARGET_SECONDS = 8 * 3600;
-export const JIRA_BROWSE_BASE_URL = 'https://cjmore.atlassian.net/browse';
+export { JIRA_BROWSE_BASE_URL };
 export const WORKLOG_AUTHOR_STORAGE_KEY = 'paracal.worklogAuthorId';
 
 export const getStoredWorklogAuthorId = () => {

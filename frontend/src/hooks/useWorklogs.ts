@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
 import { normalizeWorklogEntries } from '@/lib/worklog';
-import { getWorklogs, JiraWorklogResponse } from '@/services/api';
-
-const WORKLOG_LOAD_ERROR_MESSAGE =
-  'ไม่สามารถโหลด Jira worklog ได้ กรุณาตรวจสอบการเชื่อมต่อ VPN แล้วลองใหม่อีกครั้ง';
+import { JiraWorklogResponse, WORKLOG_UNAVAILABLE_MESSAGE } from '../../../shared/jiraWorklog';
+import { fetchWorklogs, WorklogFetchError } from '@/services/jiraWorklogService';
 
 const WORKLOG_FETCH_DEBOUNCE_MS = 2000;
 
 const isAbortedRequest = (error: unknown) =>
-  axios.isAxiosError(error) && error.code === 'ERR_CANCELED';
+  error instanceof DOMException && error.name === 'AbortError';
 
 interface UseWorklogsOptions {
   enabled: boolean;
@@ -74,7 +71,7 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
     const timer = window.setTimeout(() => {
       if (!active) return;
 
-      getWorklogs({ start: startDate, end: endDate, signal: abortController.signal })
+      fetchWorklogs({ start: startDate, end: endDate, signal: abortController.signal })
         .then((response) => {
           if (!active) return;
           const normalized = normalizeWorklogResponse(response, startDate, endDate);
@@ -83,10 +80,11 @@ export const useWorklogs = ({ enabled, startDate, endDate }: UseWorklogsOptions)
         })
         .catch((fetchError) => {
           if (!active || isAbortedRequest(fetchError)) return;
-          const apiError = axios.isAxiosError(fetchError)
-            ? (fetchError.response?.data as { error?: string } | undefined)?.error
-            : undefined;
-          setError(apiError || WORKLOG_LOAD_ERROR_MESSAGE);
+          const message =
+            fetchError instanceof WorklogFetchError
+              ? fetchError.message
+              : WORKLOG_UNAVAILABLE_MESSAGE;
+          setError(message);
         })
         .finally(() => {
           if (active) setLoading(false);

@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import config from '../config';
-import { WorklogService, WORKLOG_UNAVAILABLE_MESSAGE } from '../services/worklogService';
+import { WORKLOG_UNAVAILABLE_MESSAGE } from '../../../shared/jiraWorklog';
+import { WorklogService } from '../services/worklogService';
 import Logger from '../utils/logger';
 
 const worklogService = new WorklogService(config.jiraWorklogApiUrl, config.jiraBrowseBaseUrl);
