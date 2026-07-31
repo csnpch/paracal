@@ -9,8 +9,6 @@ interface LayoutProps {
   onCalendarModeChange?: (mode: CalendarMode) => void;
   onWorklogRefresh?: () => void;
   worklogsLoading?: boolean;
-  featureTourStarted?: boolean;
-  onboardingEnabled?: boolean;
   showMobileJiraVpnNotice?: boolean;
 }
 
@@ -21,8 +19,6 @@ export const Layout: React.FC<LayoutProps> = ({
   onCalendarModeChange,
   onWorklogRefresh,
   worklogsLoading,
-  featureTourStarted = true,
-  onboardingEnabled = true,
   showMobileJiraVpnNotice = false,
 }) => {
   return (
@@ -33,8 +29,6 @@ export const Layout: React.FC<LayoutProps> = ({
         onCalendarModeChange={onCalendarModeChange}
         onWorklogRefresh={onWorklogRefresh}
         worklogsLoading={worklogsLoading}
-        featureTourStarted={featureTourStarted}
-        onboardingEnabled={onboardingEnabled}
       />
       {showMobileJiraVpnNotice && (
         <div

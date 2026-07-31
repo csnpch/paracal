@@ -9,21 +9,15 @@ import { useCompanyHolidays } from '@/hooks/useCompanyHolidays';
 import { Event } from '@/services/apiDatabase';
 import { Layout } from '@/components/Layout';
 import type { CalendarMode } from '@/components/Navbar';
-import { FeatureTourWelcome, SpotlightTargetTour } from '@/components/SpotlightTour';
-import {
-  CALENDAR_MODE_TOUR_KEY,
-  FEATURE_TOUR_WELCOME_KEY,
-  hasSeenOnboarding,
-  JIRA_WORKLOG_PERSON_TOUR_KEY,
-  JIRA_WORKLOG_RELOAD_TOUR_KEY,
-  markOnboardingSeen,
-} from '@/lib/onboarding';
+// User tours disabled — Jira worklog not available in production yet.
+// import { FeatureTourWelcome, SpotlightTargetTour } from '@/components/SpotlightTour';
 import { deleteCompanyHoliday, updateCompanyHoliday } from '@/services/companyHolidayService';
 import { useWorklogs } from '@/hooks/useWorklogs';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { findEmployeeByAuthorName } from '@/lib/nameMatch';
 import { getStoredWorklogAuthorId, setStoredWorklogAuthorId } from '@/lib/worklog';
 import { getStoredCalendarState, setStoredCalendarState } from '@/lib/calendarStorage';
+import { isLocalDev } from '@/lib/env';
 import type { JiraWorklogEntry } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { LEAVE_TYPE_LABELS } from '@/lib/utils';
@@ -53,7 +47,9 @@ const CalendarEvents = () => {
   const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(() => readInitialCalendarState().currentDate);
   const [viewMode, setViewMode] = useState<ViewMode>(() => readInitialCalendarState().viewMode);
-  const [calendarMode, setCalendarMode] = useState<CalendarMode>(() => readInitialCalendarState().calendarMode);
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>(() =>
+    isLocalDev ? readInitialCalendarState().calendarMode : 'events',
+  );
   const [selectedWorklogAuthorId, setSelectedWorklogAuthorId] = useState(getStoredWorklogAuthorId);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -67,12 +63,6 @@ const CalendarEvents = () => {
   const [highlightedDates, setHighlightedDates] = useState<string[]>([]);
   const [currentHoverEvent, setCurrentHoverEvent] = useState<{ startDate: string; endDate: string } | null>(null);
   const [filteredEmployeeIds, setFilteredEmployeeIds] = useState<number[]>([]);
-  const [jiraPersonTourDone, setJiraPersonTourDone] = useState(() => hasSeenOnboarding(JIRA_WORKLOG_PERSON_TOUR_KEY));
-  const [featureTourStarted, setFeatureTourStarted] = useState(() => hasSeenOnboarding(FEATURE_TOUR_WELCOME_KEY));
-  const [reloadTourActive, setReloadTourActive] = useState(false);
-  const [personTourDismissSignal, setPersonTourDismissSignal] = useState(0);
-  const [reloadTourDismissSignal, setReloadTourDismissSignal] = useState(0);
-  const [mockWorklogsLoading, setMockWorklogsLoading] = useState(false);
 
   useEffect(() => {
     setStoredCalendarState(currentDate, viewMode, calendarMode);
@@ -139,18 +129,11 @@ const CalendarEvents = () => {
     endDate: worklogQueryRange.end,
   });
 
-  const showWorklogsLoading = calendarMode === 'worklogs' && (worklogsLoading || mockWorklogsLoading);
+  const showWorklogsLoading = calendarMode === 'worklogs' && worklogsLoading;
 
   const handleWorklogRefresh = useCallback(() => {
-    if (reloadTourActive) {
-      setReloadTourDismissSignal((current) => current + 1);
-      setMockWorklogsLoading(true);
-      window.setTimeout(() => setMockWorklogsLoading(false), 700);
-      return;
-    }
-
     refetchWorklogs();
-  }, [reloadTourActive, refetchWorklogs]);
+  }, [refetchWorklogs]);
 
   const selectedWorklogAuthor = useMemo(
     () => worklogData?.authors.find((author) => author.id === selectedWorklogAuthorId),
@@ -190,19 +173,11 @@ const CalendarEvents = () => {
   const handleWorklogAuthorChange = useCallback((authorId: string) => {
     setSelectedWorklogAuthorId(authorId);
     setStoredWorklogAuthorId(authorId);
-    setPersonTourDismissSignal((current) => current + 1);
-  }, []);
-
-  const handleWorklogAuthorSelectOpenChange = useCallback((open: boolean) => {
-    if (open) {
-      setPersonTourDismissSignal((current) => current + 1);
-    }
   }, []);
 
   const handleCalendarModeChange = (mode: CalendarMode) => {
     setCalendarMode(mode);
     if (mode === 'worklogs') {
-      markOnboardingSeen(CALENDAR_MODE_TOUR_KEY);
       setFilteredEmployeeIds([]);
       setSelectedWorklogAuthorId((current) => current || getStoredWorklogAuthorId());
     }
@@ -554,13 +529,12 @@ const CalendarEvents = () => {
     <Layout
       currentPage="calendar-events"
       calendarMode={calendarMode}
-      onCalendarModeChange={handleCalendarModeChange}
-      onWorklogRefresh={handleWorklogRefresh}
+      onCalendarModeChange={isLocalDev ? handleCalendarModeChange : undefined}
+      onWorklogRefresh={isLocalDev ? handleWorklogRefresh : undefined}
       worklogsLoading={showWorklogsLoading}
-      featureTourStarted={featureTourStarted}
-      onboardingEnabled={!isMobile}
-      showMobileJiraVpnNotice={isMobile && calendarMode === 'worklogs'}
+      showMobileJiraVpnNotice={isLocalDev && isMobile && calendarMode === 'worklogs'}
     >
+      {/* User tours disabled — Jira worklog not available in production yet.
       {!isMobile && !featureTourStarted && (
         <FeatureTourWelcome onStart={() => setFeatureTourStarted(true)} />
       )}
@@ -580,6 +554,7 @@ const CalendarEvents = () => {
         dismissSignal={reloadTourDismissSignal}
         onOpenChange={setReloadTourActive}
       />
+      */}
       <div className="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 md:py-8">
         {isMobile && calendarMode === 'worklogs' && worklogsError && (
           <div
@@ -624,7 +599,6 @@ const CalendarEvents = () => {
                     worklogsLoading={showWorklogsLoading}
                     suppressEvents={suppressWorklogEvents}
                     onWorklogAuthorChange={handleWorklogAuthorChange}
-                    onWorklogAuthorSelectOpenChange={handleWorklogAuthorSelectOpenChange}
                     onViewModeChange={handleViewModeChange}
                     onDateClick={handleDateClick}
                     onCreateEvent={handleCreateEvent}
