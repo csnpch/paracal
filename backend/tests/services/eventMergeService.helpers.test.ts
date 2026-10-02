@@ -13,6 +13,10 @@ describe("EventMergeService.resolveRangeDuration", () => {
     [undefined, undefined, "full"],
     [undefined, "morning", "full_morning"],
     ["afternoon", undefined, "afternoon_full"],
+    ["afternoon_full", "full", "afternoon_full"],
+    ["full", "full_morning", "full_morning"],
+    ["afternoon_full", "full_morning", "afternoon_morning"],
+    ["afternoon_morning", "afternoon_full", "afternoon_full"],
   ];
 
   for (const [first, last, expected] of cases) {
@@ -46,12 +50,13 @@ describe("EventMergeService.buildRangeDescription", () => {
     expect(out).toBe("ช่วงวันที่: 16/04/2026 - 17/04/2026 - ลาพักร้อน");
   });
 
-  test("uses first non-empty non-prefixed note", () => {
+  test("keeps all distinct source notes", () => {
     const out = svc.buildRangeDescription("2026-04-16", "2026-04-18", [
       "First reason",
       "Second reason",
+      "First reason",
     ]);
-    expect(out).toBe("ช่วงวันที่: 16/04/2026 - 18/04/2026 - First reason");
+    expect(out).toBe("ช่วงวันที่: 16/04/2026 - 18/04/2026 - First reason\nSecond reason");
   });
 });
 
@@ -199,28 +204,5 @@ describe("EventMergeService.findConsecutiveEvents (chain detection)", () => {
     const s = buildSvc([baseEvent({ id: 1, startDate: "2026-04-20" })]);
     const groups = await s.findConsecutiveEvents();
     expect(groups.length).toBe(0);
-  });
-});
-
-describe("EventMergeService chain validity helpers", () => {
-  test("canStartChain accepts full/afternoon/undefined, rejects morning", () => {
-    expect(svc.canStartChain("full")).toBe(true);
-    expect(svc.canStartChain("afternoon")).toBe(true);
-    expect(svc.canStartChain(undefined)).toBe(true);
-    expect(svc.canStartChain("morning")).toBe(false);
-  });
-
-  test("canEndChain accepts full/morning/undefined, rejects afternoon", () => {
-    expect(svc.canEndChain("full")).toBe(true);
-    expect(svc.canEndChain("morning")).toBe(true);
-    expect(svc.canEndChain(undefined)).toBe(true);
-    expect(svc.canEndChain("afternoon")).toBe(false);
-  });
-
-  test("isExtendableMiddle only allows full/undefined", () => {
-    expect(svc.isExtendableMiddle("full")).toBe(true);
-    expect(svc.isExtendableMiddle(undefined)).toBe(true);
-    expect(svc.isExtendableMiddle("morning")).toBe(false);
-    expect(svc.isExtendableMiddle("afternoon")).toBe(false);
   });
 });

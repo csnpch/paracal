@@ -11,9 +11,12 @@
     "test:sequential": "bun test tests/services/employeeService.test.ts && bun test tests/services/eventService.test.ts && bun test tests/services/dashboardService.test.ts",
     "test:all": "bun test tests/services/employeeService.test.ts && bun test tests/services/eventService.test.ts && bun test tests/services/dashboardService.test.ts && bun test tests/services/eventMergeService.test.ts && bun test tests/services/cronjobService.test.ts",
     "test:watch": "bun test --watch",
+    "test:merge": "NODE_ENV=production bun test --timeout 30000 tests/services/eventMergeService.helpers.test.ts tests/services/eventMergeService.test.ts",
     "test:coverage": "bun test --coverage"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.15",
+    "@electric-sql/pglite-socket": "0.0.20",
     "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/bun": "latest",

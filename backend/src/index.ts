@@ -73,7 +73,13 @@ async function startServer() {
       name: 'auto-merge-consecutive-events',
       pattern: '30 3 * * *',
       timezone: 'Asia/Bangkok',
-      run() { eventMergeService.executeMergeJob(); },
+      async run() {
+        try {
+          await eventMergeService.executeMergeJob();
+        } catch (error) {
+          Logger.error('[Cron] Error in event merge job:', error);
+        }
+      },
     }))
     .use(cron({
       name: 'purge-old-activity-logs',

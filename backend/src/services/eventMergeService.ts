@@ -1,5 +1,4 @@
 import { getPrisma } from "../database/connection";
-import { EventService } from "./eventService";
 import type { Event, LeaveDuration } from "../../../shared/types";
 import moment from "moment";
 import Logger from "../utils/logger";
@@ -23,26 +22,24 @@ interface MergeResult {
 // loading the whole events table into memory on each cron tick.
 const SCAN_PAST_DAYS = 365;
 const SCAN_FUTURE_DAYS = 90;
+const SUPPORTED_DURATIONS = new Set<LeaveDuration>([
+  "full", "morning", "afternoon", "afternoon_full", "full_morning", "afternoon_morning",
+]);
 
 export class EventMergeService {
   private get prisma() { return getPrisma(); }
-  private eventService = new EventService();
 
-  private canStartChain(d: LeaveDuration | undefined): boolean {
-    return d === "full" || d === "afternoon" || d === undefined;
+  private startsAfternoon(d: LeaveDuration | undefined): boolean {
+    return d === "afternoon" || d === "afternoon_full" || d === "afternoon_morning";
   }
 
-  private canEndChain(d: LeaveDuration | undefined): boolean {
-    return d === "full" || d === "morning" || d === undefined;
-  }
-
-  private isExtendableMiddle(d: LeaveDuration | undefined): boolean {
-    return d === "full" || d === undefined;
+  private endsMorning(d: LeaveDuration | undefined): boolean {
+    return d === "morning" || d === "full_morning" || d === "afternoon_morning";
   }
 
   private resolveRangeDuration(first: LeaveDuration | undefined, last: LeaveDuration | undefined): LeaveDuration {
-    const startsHalf = first === "afternoon";
-    const endsHalf = last === "morning";
+    const startsHalf = this.startsAfternoon(first);
+    const endsHalf = this.endsMorning(last);
     if (startsHalf && endsHalf) return "afternoon_morning";
     if (startsHalf) return "afternoon_full";
     if (endsHalf) return "full_morning";
@@ -53,15 +50,15 @@ export class EventMergeService {
     const startFmt = moment(startDate).format("DD/MM/YYYY");
     const endFmt = moment(endDate).format("DD/MM/YYYY");
     const prefix = `ช่วงวันที่: ${startFmt} - ${endFmt}`;
-    const note = sourceDescriptions
-      .map((d) => d.trim())
-      .filter((d) => d.length > 0 && !d.startsWith("ช่วงวันที่:"))
-      .find(Boolean);
+    const note = [...new Set(sourceDescriptions
+      .map((d) => d.trim().replace(/^ช่วงวันที่:\s*\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}\/\d{2}\/\d{4}(?:\s*-\s*)?/, ""))
+      .flatMap((d) => d.split("\n").map((line) => line.trim()))
+      .filter(Boolean))].join("\n");
     return note ? `${prefix} - ${note}` : prefix;
   }
 
   /**
-   * Find all single-day events and group consecutive ones.
+   * Group single-day and range events whose leave is continuous.
    * Honors leaveDuration so half-days don't merge across a day the user worked.
    */
   async findConsecutiveEvents(): Promise<EventGroup[]> {
@@ -69,11 +66,14 @@ export class EventMergeService {
     const fromDate = today.clone().subtract(SCAN_PAST_DAYS, "days").format("YYYY-MM-DD");
     const toDate = today.clone().add(SCAN_FUTURE_DAYS, "days").format("YYYY-MM-DD");
 
-    // The legacy `date` field is set iff startDate === endDate (eventService.computeLegacyDate).
-    // Filtering on it lets Prisma return only single-day events.
+    // Ranges have no legacy `date`. Include any range overlapping the scan
+    // window, as well as older records that only carry the legacy date.
     const rows = await this.prisma.event.findMany({
       where: {
-        date: { not: null, gte: fromDate, lte: toDate },
+        OR: [
+          { startDate: { lte: toDate }, endDate: { gte: fromDate } },
+          { date: { gte: fromDate, lte: toDate } },
+        ],
       },
       orderBy: [{ employeeId: "asc" }, { leaveType: "asc" }, { startDate: "asc" }],
     });
@@ -111,12 +111,14 @@ export class EventMergeService {
       leaveType: row.leaveType as Event["leaveType"],
       leaveDuration: (row.leaveDuration ?? undefined) as LeaveDuration | undefined,
       date: row.date ?? undefined,
-      startDate: row.startDate!,
-      endDate: row.endDate!,
+      startDate: row.startDate ?? row.date ?? "",
+      endDate: row.endDate ?? row.date ?? "",
       description: row.description ?? undefined,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
-    }));
+    })).filter((e) => (e.leaveDuration === undefined || SUPPORTED_DURATIONS.has(e.leaveDuration))
+      && moment(e.startDate, "YYYY-MM-DD", true).isValid()
+      && moment(e.endDate, "YYYY-MM-DD", true).isValid() && e.startDate <= e.endDate);
 
     const grouped = new Map<string, Event[]>();
     for (const e of events) {
@@ -130,39 +132,42 @@ export class EventMergeService {
 
     for (const list of grouped.values()) {
       if (list.length < 2) continue;
+      list.sort((a, b) => a.startDate.localeCompare(b.startDate)
+        || Number(this.startsAfternoon(a.leaveDuration)) - Number(this.startsAfternoon(b.leaveDuration))
+        || a.endDate.localeCompare(b.endDate) || a.id - b.id);
 
       let chain: Event[] = [];
 
       const finalize = () => {
         if (chain.length >= 2) {
-          const last = chain[chain.length - 1]!;
-          if (this.canEndChain(last.leaveDuration)) {
-            const head = chain[0]!;
-            consecutiveGroups.push({
-              employeeId: head.employeeId,
-              employeeName: head.employeeName,
-              leaveType: head.leaveType,
-              events: chain,
-            });
-          }
+          const head = chain[0]!;
+          consecutiveGroups.push({
+            employeeId: head.employeeId,
+            employeeName: head.employeeName,
+            leaveType: head.leaveType,
+            events: chain,
+          });
         }
         chain = [];
       };
 
       for (const ev of list) {
         if (chain.length === 0) {
-          if (this.canStartChain(ev.leaveDuration)) chain = [ev];
+          chain = [ev];
           continue;
         }
         const prev = chain[chain.length - 1]!;
-        const continuous = workingDaysBetween(prev.startDate, ev.startDate) === 0;
-        const prevExtendable = this.isExtendableMiddle(prev.leaveDuration) || (chain.length === 1 && this.canStartChain(prev.leaveDuration));
-        const currMergeable = this.isExtendableMiddle(ev.leaveDuration) || this.canEndChain(ev.leaveDuration);
-        if (continuous && prevExtendable && currMergeable) {
+        const continuous = prev.endDate === ev.startDate
+          ? this.endsMorning(prev.leaveDuration) && this.startsAfternoon(ev.leaveDuration)
+          : prev.endDate < ev.startDate
+            && (!this.endsMorning(prev.leaveDuration) || isHoliday(prev.endDate))
+            && (!this.startsAfternoon(ev.leaveDuration) || isHoliday(ev.startDate))
+            && workingDaysBetween(prev.endDate, ev.startDate) === 0;
+        if (continuous) {
           chain.push(ev);
         } else {
           finalize();
-          if (this.canStartChain(ev.leaveDuration)) chain = [ev];
+          chain = [ev];
         }
       }
       finalize();
@@ -179,12 +184,12 @@ export class EventMergeService {
 
     const firstEvent = events[0];
     const lastEvent = events[events.length - 1];
-    if (!firstEvent || !lastEvent) {
-      return { success: false, eventsCount: 0, startDate: "", endDate: "", error: "Missing start or end event" };
+    if (!firstEvent || !lastEvent || events.length < 2 || new Set(events.map((e) => e.id)).size !== events.length) {
+      return { success: false, eventsCount: 0, startDate: "", endDate: "", error: "A merge requires at least two distinct events" };
     }
 
     const startDate = firstEvent.startDate;
-    const endDate = lastEvent.startDate;
+    const endDate = lastEvent.endDate;
     const leaveDuration = this.resolveRangeDuration(firstEvent.leaveDuration, lastEvent.leaveDuration);
     const description = this.buildRangeDescription(
       startDate,
@@ -193,18 +198,38 @@ export class EventMergeService {
     );
 
     try {
-      const newEvent = await this.eventService.createEvent({
-        employeeId,
-        leaveType: leaveType as Event["leaveType"],
-        leaveDuration,
-        startDate,
-        endDate,
-        description,
-      });
+      const newEvent = await this.prisma.$transaction(async (tx) => {
+        const sources = await tx.event.findMany({ where: { id: { in: events.map((e) => e.id) } } });
+        const unchanged = sources.length === events.length && events.every((e) => {
+          const row = sources.find((r) => r.id === e.id);
+          return row && row.employeeId === employeeId && e.employeeId === employeeId
+            && row.leaveType === leaveType && e.leaveType === leaveType
+            && row.employeeName === e.employeeName
+            && (row.startDate ?? row.date) === e.startDate && (row.endDate ?? row.date) === e.endDate
+            && (row.date ?? undefined) === e.date
+            && (row.leaveDuration ?? "full") === (e.leaveDuration ?? "full")
+            && (row.description ?? undefined) === e.description
+            && row.updatedAt.toISOString() === e.updatedAt;
+        });
+        if (!unchanged) throw new Error("Source events changed after scanning; merge skipped");
 
-      for (const event of events) {
-        await this.eventService.deleteEvent(event.id);
-      }
+        // Match the snapshots as well as IDs so a concurrent edit or merge
+        // cannot be deleted. Any mismatch rolls back the whole transaction.
+        const deleted = await tx.event.deleteMany({ where: { OR: sources.map((row) => ({
+          id: row.id, employeeId: row.employeeId, employeeName: row.employeeName,
+          leaveType: row.leaveType, leaveDuration: row.leaveDuration,
+          date: row.date, startDate: row.startDate, endDate: row.endDate,
+          description: row.description, updatedAt: row.updatedAt,
+        })) } });
+        if (deleted.count !== events.length) throw new Error("Source events changed during merge");
+
+        const employee = await tx.employee.findUnique({ where: { id: employeeId }, select: { name: true } });
+        if (!employee) throw new Error(`Employee with id ${employeeId} not found`);
+        return tx.event.create({ data: {
+          employeeId, employeeName: employee.name, leaveType, leaveDuration,
+          startDate, endDate, date: startDate === endDate ? startDate : null, description,
+        } });
+      }, { isolationLevel: "Serializable" });
 
       Logger.info(
         `[EventMerge] Merged ${events.length} events → ${newEvent.id} (${employeeName}, ${leaveType}/${leaveDuration}, ${startDate}→${endDate})`
@@ -257,8 +282,10 @@ export class EventMergeService {
       Logger.info(
         `[EventMerge] Merge job completed: ${successCount} groups merged, ${totalEvents} events consolidated, ${failCount} failures`
       );
+      if (failCount > 0) throw new Error(`Event merge job failed for ${failCount} group(s)`);
     } catch (error) {
       Logger.error("[EventMerge] Error during merge job execution:", error);
+      throw error;
     }
   }
 }
