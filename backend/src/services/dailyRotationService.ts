@@ -6,6 +6,8 @@ import { NotificationService } from './notificationService';
 import { createHash } from 'node:crypto';
 import Logger from '../utils/logger';
 
+export class DailyRotationValidationError extends Error {}
+
 type Member = { id: number; name: string; createdAt: Date | string };
 
 export function reconcileOrder(saved: number[], employees: Array<Pick<Member, 'id' | 'createdAt'>>): number[] {
@@ -15,7 +17,7 @@ export function reconcileOrder(saved: number[], employees: Array<Pick<Member, 'i
 }
 
 export function validateDate(date: string): void {
-  if (!moment.utc(date, 'YYYY-MM-DD', true).isValid()) throw new Error('Invalid date');
+  if (!moment.utc(date, 'YYYY-MM-DD', true).isValid()) throw new DailyRotationValidationError('Invalid date');
 }
 
 export function weekOf(date: string): string {
@@ -27,7 +29,7 @@ export function buildAssignments(start: string, end: string, employees: Member[]
   validateDate(start); validateDate(end);
   const first = moment.utc(weekOf(start));
   const last = moment.utc(weekOf(end));
-  if (last.isBefore(first) || last.diff(first, 'weeks') > 1040) throw new Error('Invalid rotation range');
+  if (last.isBefore(first) || last.diff(first, 'weeks') > 1040) throw new DailyRotationValidationError('Invalid rotation range');
   const closed = new Set(holidays);
   const published = new Map(snapshots.map(s => [s.weekStart, s]));
   const result: DailyLeaderAssignment[] = [];
@@ -107,10 +109,10 @@ export class DailyRotationService {
   }
 
   async updateSettings(updates: DailyRotationUpdate): Promise<DailyRotationSettings> {
-    if (updates.notificationTime !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(updates.notificationTime)) throw new Error('Invalid notification time');
+    if (updates.notificationTime !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(updates.notificationTime)) throw new DailyRotationValidationError('Invalid notification time');
     if (updates.startWeek !== undefined) {
       validateDate(updates.startWeek);
-      if (weekOf(updates.startWeek) !== updates.startWeek || Math.abs(moment.utc(this.today()).diff(moment.utc(updates.startWeek), 'weeks')) > 1040) throw new Error('Start week must be a Monday within 20 years');
+      if (weekOf(updates.startWeek) !== updates.startWeek || Math.abs(moment.utc(this.today()).diff(moment.utc(updates.startWeek), 'weeks')) > 1040) throw new DailyRotationValidationError('Start week must be a Monday within 20 years');
     }
     await this.ensureConfig();
     await this.prisma.$transaction(async tx => {
@@ -119,9 +121,9 @@ export class DailyRotationService {
       const employees = await tx.employee.findMany();
       if (updates.employeeOrder) {
         const ids = updates.employeeOrder;
-        if (ids.length !== employees.length || new Set(ids).size !== ids.length || ids.some(id => !employees.some(e => e.id === id))) throw new Error('Order must include each current employee exactly once');
+        if (ids.length !== employees.length || new Set(ids).size !== ids.length || ids.some(id => !employees.some(e => e.id === id))) throw new DailyRotationValidationError('Order must include each current employee exactly once');
       }
-      if (updates.startWeek && updates.startWeek !== cfg.startWeek && await tx.dailyMeetingWeek.count()) throw new Error('Start week cannot change after rotation has started');
+      if (updates.startWeek && updates.startWeek !== cfg.startWeek && await tx.dailyMeetingWeek.count()) throw new DailyRotationValidationError('Start week cannot change after rotation has started');
       // Preserve the current assignment before changing the future order.
       if (cfg.enabled) await this.collect(tx, cfg, this.today(), true);
       const data = { ...updates };
@@ -134,7 +136,7 @@ export class DailyRotationService {
 
   async getAssignments(start: string, end: string): Promise<DailyLeaderAssignment[]> {
     validateDate(start); validateDate(end);
-    if (start > end || moment.utc(end).diff(moment.utc(start), 'days') > 366) throw new Error('Calendar range must be at most one year');
+    if (start > end || moment.utc(end).diff(moment.utc(start), 'days') > 366) throw new DailyRotationValidationError('Calendar range must be at most one year');
     await this.ensureConfig();
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM daily_rotation_config WHERE id = 1 FOR UPDATE`;

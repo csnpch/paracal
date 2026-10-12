@@ -239,4 +239,27 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect(disabled.status).toBe(200);
     expect((await disabled.json()).data.enabled).toBe(false);
   });
+  test('missing database schema is a server error and does not expose Prisma internals', async () => {
+    await fixture.prisma.$executeRawUnsafe('ALTER TABLE daily_rotation_config RENAME TO daily_rotation_config_unavailable');
+    try {
+      const routes = routeModule.createDailyRotationRoutes(service);
+      const calendar = await routes.handle(new Request('http://localhost/daily-rotation/events?start=2026-09-27&end=2026-11-07'));
+      expect(calendar.status).toBe(500);
+      expect(await calendar.json()).toEqual({ success: false, error: 'Unable to load daily meeting events' });
+      const settings = await routes.handle(new Request('http://localhost/daily-rotation', { headers: { Authorization: `Bearer ${createAdminSession()}` } }));
+      expect(settings.status).toBe(500);
+      expect(await settings.json()).toEqual({ success: false, error: 'Unable to load settings' });
+      const update = await routes.handle(new Request('http://localhost/daily-rotation', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${createAdminSession()}` }, body: JSON.stringify({ enabled: false }) }));
+      expect(update.status).toBe(500);
+      expect(await update.json()).toEqual({ success: false, error: 'Unable to save settings' });
+    } finally {
+      await fixture.prisma.$executeRawUnsafe('ALTER TABLE daily_rotation_config_unavailable RENAME TO daily_rotation_config');
+    }
+  });
+  test('invalid calendar dates remain a client validation error', async () => {
+    const routes = routeModule.createDailyRotationRoutes(service);
+    const response = await routes.handle(new Request('http://localhost/daily-rotation/events?start=invalid&end=2026-11-07'));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ success: false, error: 'Invalid date' });
+  });
 });

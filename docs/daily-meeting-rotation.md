@@ -20,7 +20,7 @@ bunx prisma db execute --file prisma/migrations/20261009100000_daily_meeting_rot
 bunx prisma generate
 ```
 
-Then deploy/restart the backend and frontend together. The implementation session applied this SQL only to isolated test databases; it did not migrate the configured application database, deploy, or call real Teams webhooks.
+Then deploy/restart the backend and frontend together. The initial implementation session applied this SQL only to isolated test databases. On 2026-10-12, the user authorized the production migration; it was applied in one transaction using the verified Railway `paracal-server` production environment. Existing counts stayed unchanged: 15 employees, 107 events, 3 cronjobs. No real Teams test messages were sent.
 
 ## Delivery behavior
 
@@ -40,6 +40,8 @@ bunx tsc --noEmit -p tsconfig.app.json
 bun run build
 ```
 
-Final results: 28 rotation tests and 158 existing merge tests passed; all 18 frontend tests passed; both builds and the frontend typecheck passed. Independent code review approved the final transaction fix. Actual local UI verification used an isolated PostgreSQL fixture and fake webhook destinations, including order/save, master-off calendar hiding, desktop/narrow configuration layout, and the unchanged calendar with first-workday events.
+Latest results: 30 rotation tests and 158 existing merge tests passed; all 18 frontend tests passed; both builds and the frontend typecheck passed. Independent code review approved the final transaction fix. Actual local UI verification used an isolated PostgreSQL fixture and fake webhook destinations, including order/save, master-off calendar hiding, desktop/narrow configuration layout, and the unchanged calendar with first-workday events.
 
 The standard backend test script still fails its 16 pre-existing EmployeeService tests: synchronous SQLite expectations call asynchronous PostgreSQL methods. Backend-wide TypeScript checking also retains existing errors in legacy tests, logger/auth and worklog code; no errors were reported in the new rotation implementation.
+
+HTTP errors distinguish explicit rotation validation (400), authentication (401) and unexpected infrastructure failures (500). Internal database details are logged server-side and are not included in public error responses. The actual missing-table case is covered by a table-rename regression in isolated PostgreSQL.
