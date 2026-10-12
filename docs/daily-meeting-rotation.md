@@ -11,16 +11,18 @@ Current leader identity remains stable when the order changes; future weeks foll
 
 ## Database rollout
 
-This repository previously had no Prisma migration baseline. Apply the additive SQL **once**, using the intended deployment database, before starting this version of the backend. It adds three tables and an independent `daily_leader_enabled` column with a `false` default; existing jobs retain their event settings. The feature and its common notification switch initially default to off.
+Backend `dev`, `build` and `start` automatically run `prisma migrate deploy` first. Migration failure stops the command before compilation or server startup. Docker/Railway starts with `bun run start`, so migrations also run automatically on deployment and restart. Docker image construction only generates the client; `build:compile` is the equivalent database-independent build command.
 
-From `backend/`, with the deployment's `DATABASE_URL` configured:
+New databases are created from the committed baseline and rotation migrations. Existing databases created before migration history need **one-time adoption**, with the intended database's `DATABASE_URL` configured. The helper checks the schema before registering already-applied migrations; it does not execute the schema diff, reset the database, or change application data. Unmanaged historical tables are preserved. Partial or mismatched application schemas fail adoption.
 
 ```sh
-bunx prisma db execute --file prisma/migrations/20261009100000_daily_meeting_rotation/migration.sql
-bunx prisma generate
+bun run db:adopt   # existing databases without migration history only
+bun run db:migrate
 ```
 
-Then deploy/restart the backend and frontend together. The initial implementation session applied this SQL only to isolated test databases. On 2026-10-12, the user authorized the production migration; it was applied in one transaction using the verified Railway `paracal-server` production environment. Existing counts stayed unchanged: 15 employees, 107 events, 3 cronjobs. No real Teams test messages were sent.
+The original rotation SQL adds three tables and an independent `daily_leader_enabled` column with a `false` default. Existing jobs retain their event settings; the feature and global notification switch initially default to off. On 2026-10-12, production SQL was applied using the verified Railway `paracal-server` environment, and both baseline and rotation migration history entries were then registered after schema validation. `migrate deploy` confirmed no pending migrations. Existing counts stayed unchanged: 15 employees, 107 events, 3 cronjobs. Subsequent committed migrations are applied by the normal startup script. No real Teams test messages were sent.
+
+`prisma/legacy.prisma` and `prisma/rotation-rollout.prisma` are immutable schema checkpoints for validating that one-time transition. New schema changes belong in `prisma/schema.prisma` and a new migration directory; do not edit applied migration SQL or these checkpoints. See [Prisma baselining](https://www.prisma.io/docs/orm/prisma-migrate/workflows/baselining) and [production migrations](https://www.prisma.io/docs/cli/v7/migrate/deploy).
 
 ## Delivery behavior
 
@@ -32,6 +34,7 @@ TDD regression coverage includes holiday postponement, full closure, manual/new/
 
 ```sh
 cd backend
+bun run test:migrations
 bun run test:rotation
 bun run test:merge
 cd ../frontend
@@ -40,7 +43,7 @@ bunx tsc --noEmit -p tsconfig.app.json
 bun run build
 ```
 
-Latest results: 30 rotation tests and 158 existing merge tests passed; all 18 frontend tests passed; both builds and the frontend typecheck passed. Independent code review approved the final transaction fix. Actual local UI verification used an isolated PostgreSQL fixture and fake webhook destinations, including order/save, master-off calendar hiding, desktop/narrow configuration layout, and the unchanged calendar with first-workday events.
+Latest backend results: 7 migration lifecycle tests, 30 rotation tests and 158 existing merge tests passed (195 total); compilation passed. Migration tests exercise real CLI commands against isolated PostgreSQL fixtures: empty database builds, legacy adoption, already-applied SQL, repeated migrations, record preservation, mismatched/partial schema refusal and lifecycle failure propagation. Independent code review approved migration automation. The earlier frontend verification passed all 18 tests, build and typecheck. Actual local UI verification used an isolated PostgreSQL fixture and fake webhook destinations, including order/save, master-off calendar hiding, desktop/narrow configuration layout, and the unchanged calendar with first-workday events.
 
 The standard backend test script still fails its 16 pre-existing EmployeeService tests: synchronous SQLite expectations call asynchronous PostgreSQL methods. Backend-wide TypeScript checking also retains existing errors in legacy tests, logger/auth and worklog code; no errors were reported in the new rotation implementation.
 

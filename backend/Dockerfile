@@ -5,6 +5,9 @@
 # --- Stage 1: Install dependencies (cached unless package files change) ---
 FROM oven/bun:1-alpine AS deps
 
+# Prisma's native migration engine needs OpenSSL during install and execution.
+RUN apk add --no-cache openssl
+
 WORKDIR /app/backend
 
 # Copy only dependency-related files first for optimal caching
@@ -22,6 +25,8 @@ RUN bunx prisma generate
 # --- Stage 2: Production image (slim) ---
 FROM oven/bun:1-alpine AS production
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app/backend
 
 # Copy installed node_modules + generated Prisma client from deps stage
@@ -33,6 +38,7 @@ COPY backend/src ./src
 COPY backend/index.ts ./
 COPY backend/package.json ./
 COPY backend/tsconfig.json ./
+COPY backend/scripts/adopt-migrations.ts ./scripts/adopt-migrations.ts
 COPY backend/prisma ./prisma
 COPY backend/prisma.config.ts ./
 
@@ -43,4 +49,4 @@ COPY shared /app/shared
 RUN mkdir -p logs data && chmod 755 logs data
 
 EXPOSE 3001
-CMD ["bun", "index.ts"]
+CMD ["bun", "run", "start"]

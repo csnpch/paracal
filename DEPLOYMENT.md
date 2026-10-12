@@ -122,6 +122,14 @@ The Dockerfiles use these techniques to minimize build time on Railway:
 - **Backend skips compilation**: Bun runs TypeScript directly, no `bun build` step needed
 - **Multi-stage builds**: final images are minimal (nginx:alpine ~40MB, bun:alpine ~150MB)
 
+### Automatic database migrations
+
+Backend `dev`, `build` and `start` apply pending committed Prisma migrations before continuing. Docker/Railway uses `bun run start`; a migration error prevents the new backend from serving. Image builds remain database-independent and require no database credentials. The Alpine image includes OpenSSL for Prisma's native migration engine.
+
+Configure the intended PostgreSQL `DATABASE_URL` before running backend dev/build/start. Use `bun run build:compile` inside `backend/` for an artifact-only build without database access. Frontend builds do not run database migrations.
+
+Databases created before Prisma migration history require a one-time `bun run db:adopt` from `backend/`. This validates the known legacy/rotation schema and records already-applied migrations without changing application records; normal deployment then applies any pending migrations automatically. Empty databases only need the normal dev/build/start command. See [database rollout](docs/daily-meeting-rotation.md#database-rollout).
+
 ---
 
 ## 🔄 Update Process (Local Build & Push)
@@ -207,7 +215,7 @@ docker compose -f docker-compose.gcp.yml down
 | Variable | Description | Location |
 | :--- | :--- | :--- |
 | `VITE_API_BASE_URL` | Backend API URL (baked at build time) | `frontend/.env` |
-| `DATABASE_URL` | SQLite path (e.g., `file:/app/data/calendar.db`) | `docker-compose.gcp.yml` |
+| `DATABASE_URL` | PostgreSQL connection URL used by the backend and Prisma migrations | Backend environment / `backend/.env` |
 | `ADMIN_PASSWORD` | Admin password for bulk operations | `docker-compose.yml` |
 | `CALENDARIFIC_API_KEY` | API key for Thai holiday fetching | `docker-compose.yml` |
 | `APP_URL` | Application URL for notification links | `docker-compose.yml` |

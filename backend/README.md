@@ -8,11 +8,17 @@ A high-performance REST API built with Bun and Elysia.js for calendar and employ
 # Install dependencies
 bun install
 
-# Run development server with auto-reload
+# Configure DATABASE_URL in .env, then run pending migrations and the dev server
 bun dev
 
 # Run production server
 bun start
+
+# Apply migrations and build
+bun run build
+
+# Compile only (no database connection)
+bun run build:compile
 
 # Run tests
 bun test
@@ -22,8 +28,8 @@ bun test
 
 - **Runtime**: [Bun](https://bun.sh) - Fast JavaScript runtime
 - **Framework**: [Elysia.js](https://elysiajs.com) - Fast & lightweight web framework
-- **Database**: SQLite with better-sqlite3
-- **Testing**: Jest
+- **Database**: PostgreSQL with Prisma
+- **Testing**: Bun
 - **Logging**: Winston
 - **Documentation**: Swagger/OpenAPI
 
@@ -41,7 +47,7 @@ For detailed endpoint documentation, start the server and visit:
 
 ## 🗄️ Database Schema
 
-The SQLite database includes tables for:
+The PostgreSQL database includes tables for:
 - **employees** - Employee records with roles and details
 - **events** - Calendar events with scheduling info
 - **holidays** - Company holidays
@@ -54,14 +60,19 @@ The SQLite database includes tables for:
 - Default port: **3001**
 
 ### Database
-- File: `calendar.db` (excluded from git)
-- Auto-initialized on startup with schema
+- Set `DATABASE_URL` in `.env` or the runtime environment.
+- `dev`, `build`, and `start` automatically apply committed migrations with `prisma migrate deploy`; migration errors stop the command.
+- Docker image builds generate the client without connecting to the database. The container migrates before starting the server.
+- Databases from before Prisma migration history need one-time `bun run db:adopt`. It validates the existing schema and registers its history without resetting records. Fresh databases need no adoption. See [database rollout](../docs/daily-meeting-rotation.md#database-rollout).
 
 ## 🧪 Testing
 
 ```bash
 # Run all tests
 bun test
+
+# Lifecycle migrations against isolated PostgreSQL fixtures
+bun run test:migrations
 
 # Run tests in watch mode
 bun run test:watch
@@ -130,8 +141,8 @@ docker-compose up backend
 
 - **Bun runtime**: ~3x faster than Node.js
 - **Elysia.js framework**: Lightweight & fast
-- **SQLite**: Zero-config, embedded database
-- **Better-sqlite3**: Synchronous, faster SQLite driver
+- **PostgreSQL**: Persistent relational database with tracked schema migrations
+- **Prisma**: Type-safe asynchronous queries through the PostgreSQL adapter
 
 ## 📚 API Documentation
 
