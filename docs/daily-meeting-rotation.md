@@ -44,10 +44,18 @@ bunx tsc --noEmit -p tsconfig.app.json
 bun run build
 ```
 
-Latest backend results: 7 migration lifecycle tests, 40 rotation tests and 158 existing merge tests passed (205 total); compilation passed. Migration tests exercise real CLI commands against isolated PostgreSQL fixtures: empty database builds, legacy adoption, already-applied SQL, repeated migrations, record preservation, mismatched/partial schema refusal and lifecycle failure propagation. Independent code review approved migration automation. Latest frontend verification passed all 24 tests, build and typecheck. This includes employee-editor focus/save and next-leader selection/preview/empty-team coverage. Actual local UI verification used an isolated PostgreSQL fixture and fake webhook destinations, including order/save, master-off calendar hiding, desktop/narrow configuration layout, and the unchanged calendar with first-workday events.
+Latest backend results: 7 migration lifecycle tests, 43 rotation tests and 158 existing merge tests passed (208 total); compilation passed. Migration tests exercise real CLI commands against isolated PostgreSQL fixtures: empty database builds, legacy adoption, already-applied SQL, repeated migrations, record preservation, mismatched/partial schema refusal and lifecycle failure propagation. Independent code review approved migration automation. Latest frontend verification passed all 24 tests, build and typecheck. This includes employee-editor focus/save and next-leader selection/preview/empty-team coverage. Actual local UI verification used an isolated PostgreSQL fixture and fake webhook destinations, including order/save, master-off calendar hiding, desktop/narrow configuration layout, and the unchanged calendar with first-workday events.
 
 The standard backend test script still fails its 16 pre-existing EmployeeService tests: synchronous SQLite expectations call asynchronous PostgreSQL methods. Backend-wide TypeScript checking also retains existing errors in legacy tests, logger/auth and worklog code; no errors were reported in the new rotation implementation.
 
 HTTP errors distinguish explicit rotation validation (400), authentication (401) and unexpected infrastructure failures (500). Internal database details are logged server-side and are not included in public error responses. The actual missing-table case is covered by a table-rename regression in isolated PostgreSQL.
 
 The next-week selector sends `nextLeaderEmployeeId` to the authenticated settings PUT. GET returns the next Monday as `nextWeekStart` and the selected/forecast next leader as `nextLeaderEmployeeId` (null when none is available). Migration `20261012120000_daily_leader_start` adds nullable `leader_start_week` and `leader_start_employee_id` config columns; existing settings and queue order are retained. A pending selection remains visible even when a closure exceeds the four-week preview.
+
+Leader notifications show the short card below (with the existing Open Paracal action). When leader and calendar messages are due together, the scheduler waits for leader webhook sends to finish before starting calendar notifications. It keeps the original tick time, and a leader failure does not suppress calendar delivery. No real Teams messages were sent during verification; ordering and failed-response cases use isolated PostgreSQL and local HTTP endpoints.
+
+```text
+✳ Paracal
+
+🎙️ นาย A จะนำ Daily Meeting ในสัปดาห์นี้
+```

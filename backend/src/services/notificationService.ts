@@ -148,7 +148,6 @@ function buildEventListByDate(events: Event[]): string {
 // ─── Adaptive Card Builder ───────────────────────────────────
 
 function createAdaptiveCard(headerText: string, summaryText: string, eventListText: string, customMessage?: string): TeamsNotificationPayload {
-  const appUrl = config.appUrl;
   const appName = config.appName;
 
   const bodyItems: Array<Record<string, any>> = [
@@ -195,6 +194,12 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
     });
   }
 
+  return createMessageCard(bodyItems);
+}
+
+function createMessageCard(bodyItems: Array<Record<string, any>>): TeamsNotificationPayload {
+  const appName = config.appName;
+  const appUrl = config.appUrl;
   return {
     type: 'message',
     attachments: [{
@@ -215,9 +220,10 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
 
 export class NotificationService {
   static createDailyLeaderPayload(assignment: import('../../../shared/types').DailyLeaderAssignment): TeamsNotificationPayload {
-    const end = moment.utc(assignment.weekStart).add(6, 'days').format('YYYY-MM-DD');
-    return createAdaptiveCard('การแจ้งเตือนผู้นำ daily meeting',
-      `สัปดาห์ ${assignment.weekStart} – ${end}`, `ผู้นำ daily meeting สัปดาห์นี้: ${assignment.employeeName}`);
+    return createMessageCard([
+      { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `✳ **${config.appName}**` },
+      { type: 'TextBlock', spacing: 'Medium', text: `🎙️ ${assignment.employeeName} จะนำ Daily Meeting ในสัปดาห์นี้`, wrap: true },
+    ]);
   }
 
   static async sendDailyLeaderNotification(webhookUrl: string, assignment: import('../../../shared/types').DailyLeaderAssignment) {

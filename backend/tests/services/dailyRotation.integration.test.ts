@@ -123,7 +123,7 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect((await response.json()).data.nextLeaderEmployeeId).toBe(3);
     await service.dispatchDue(monday); await service.dispatchDue(monday);
     expect(payloads).toHaveLength(1);
-    expect(payloads[0].attachments[0].content.body[1].columns[0].items[2].text).toBe('ผู้นำ daily meeting สัปดาห์นี้: C');
+    expect(payloads[0].attachments[0].content.body[1].text).toBe('🎙️ C จะนำ Daily Meeting ในสัปดาห์นี้');
   });
   test('starts disabled with the oldest employees first', async () => {
     expect(await service.getSettings()).toMatchObject({ enabled: false, notificationEnabled: false, notificationTime: '09:00', employeeOrder: [1, 2, 3] });
@@ -183,7 +183,7 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     await new DailyRotationService(fixture.prisma).dispatchDue(monday);
     expect(payloads).toHaveLength(1);
     expect(JSON.stringify(payloads[0])).toContain('B');
-    expect(JSON.stringify(payloads[0])).toContain('2026-10-12');
+    expect(await fixture.prisma.dailyLeaderDelivery.findMany()).toMatchObject([{ weekStart: '2026-10-12', status: 'sent' }]);
     await service.dispatchDue(new Date('2026-10-13T02:00:00Z'));
     expect(payloads).toHaveLength(1);
   });
@@ -288,12 +288,76 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect(cfg).toMatchObject({ enabled: false, daily_leader_enabled: true });
     expect(await cron.updateConfig(cfg.id, { enabled: true, daily_leader_enabled: false })).toMatchObject({ enabled: true, daily_leader_enabled: false });
   });
-  test('leader payload identifies the week, leader and Paracal action', () => {
+  test('leader card presents only the app name and this week’s leader while keeping the Paracal action', () => {
     const card = (NotificationService as any).createDailyLeaderPayload({ weekStart: '2026-10-12', date: '2026-10-15', employeeId: 2, employeeName: 'B' });
     const content = card.attachments[0].content;
-    expect(JSON.stringify(content.body)).toContain('B');
-    expect(JSON.stringify(content.body)).toContain('daily meeting');
+    expect(content.body.map((item: any) => item.text)).toEqual(['✳ **Paracal**', '🎙️ B จะนำ Daily Meeting ในสัปดาห์นี้']);
     expect(content.actions[0].type).toBe('Action.OpenUrl');
+  });
+  // Bind actual event/cron services to isolated PostgreSQL; only the webhook
+  // endpoint is replaced, so these exercise queries, scheduler and HTTP sends.
+  const calendarScheduler = async (url: string) => {
+    await fixture.prisma.cronjobConfig.create({ data: { name: 'Calendar and leader', enabled: true,
+      dailyLeaderEnabled: true, scheduleTime: '09:00', webhookUrl: url, notificationDays: 0 } });
+    await fixture.events.createEvent({ employeeId: 1, leaveType: 'annual', leaveDuration: 'full',
+      startDate: '2026-10-12', endDate: '2026-10-12' });
+    moment.now = () => monday.getTime();
+    const cron = new CronjobService(service);
+    Object.defineProperty(cron, 'prisma', { get: () => fixture.prisma });
+    Object.defineProperty((cron as any).eventService, 'prisma', { get: () => fixture.prisma });
+    return cron;
+  };
+  test('same-time scheduler waits for the leader webhook response before posting calendar events', async () => {
+    await configure();
+    let leaderAcknowledged = false;
+    const received: { kind: string; leaderAcknowledged: boolean; payload: any }[] = [];
+    const slowWebhook = Bun.serve({ port: 0, fetch: async req => {
+      const payload = await req.json();
+      const kind = JSON.stringify(payload).includes('📅 แจ้งเตือนปฏิทิน') ? 'calendar' : 'leader';
+      received.push({ kind, leaderAcknowledged, payload });
+      if (kind === 'leader') {
+        await Bun.sleep(50); // Simulate a webhook accepting a leader slowly.
+        leaderAcknowledged = true;
+      }
+      return new Response('accepted');
+    } });
+    try {
+      const cron = await calendarScheduler(slowWebhook.url.toString());
+      await cron.checkAndExecuteScheduledNotifications();
+      await cron.checkAndExecuteScheduledNotifications();
+      expect(received.map(item => item.kind)).toEqual(['leader', 'calendar']);
+      expect(received[1].leaderAcknowledged).toBe(true);
+      expect(JSON.stringify(received[0].payload)).toContain('🎙️ B จะนำ Daily Meeting ในสัปดาห์นี้');
+      expect(JSON.stringify(received[1].payload)).toContain('A');
+    } finally { slowWebhook.stop(true); }
+  });
+  test('a failed leader webhook still permits the scheduled calendar notification', async () => {
+    await configure();
+    const received: string[] = [];
+    const failedWebhook = Bun.serve({ port: 0, fetch: async req => {
+      const payload = await req.json();
+      const kind = JSON.stringify(payload).includes('📅 แจ้งเตือนปฏิทิน') ? 'calendar' : 'leader';
+      received.push(kind);
+      return new Response(kind === 'leader' ? 'unavailable' : 'accepted', { status: kind === 'leader' ? 500 : 200 });
+    } });
+    try {
+      const cron = await calendarScheduler(failedWebhook.url.toString());
+      await cron.checkAndExecuteScheduledNotifications();
+      expect(received.filter(kind => kind === 'calendar')).toHaveLength(1);
+      expect(await fixture.prisma.dailyLeaderDelivery.findMany()).toMatchObject([{ status: 'failed' }]);
+    } finally { failedWebhook.stop(true); }
+  });
+  test('rotation database failure is isolated from scheduled calendar notifications', async () => {
+    await configure();
+    const cron = await calendarScheduler(webhook.url.toString());
+    await fixture.prisma.$executeRawUnsafe('ALTER TABLE daily_rotation_config RENAME TO daily_rotation_config_unavailable');
+    try {
+      await cron.checkAndExecuteScheduledNotifications();
+      expect(payloads).toHaveLength(1);
+      expect(JSON.stringify(payloads[0])).toContain('📅 แจ้งเตือนปฏิทิน');
+    } finally {
+      await fixture.prisma.$executeRawUnsafe('ALTER TABLE daily_rotation_config_unavailable RENAME TO daily_rotation_config');
+    }
   });
   test('scheduler dispatches leader subscriptions even when no event cronjob is enabled', async () => {
     await configure(); await subscribe();

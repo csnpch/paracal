@@ -196,12 +196,12 @@ export class CronjobService {
 
   async checkAndExecuteScheduledNotifications(): Promise<void> {
     const now = moment().utcOffset('+07:00');
-    await Promise.all([
-      this.checkAndExecuteEventNotifications(now),
-      this.rotationService.dispatchDue(now.toDate()).catch(error => {
-        Logger.error('Daily meeting rotation scheduler failed:', error);
-      }),
-    ]);
+    // Finish the leader send first when both topics are due. Keep the tick's
+    // original time so a slow webhook cannot skip this minute's calendar jobs.
+    await this.rotationService.dispatchDue(now.toDate()).catch(error => {
+      Logger.error('Daily meeting rotation scheduler failed:', error);
+    });
+    await this.checkAndExecuteEventNotifications(now);
   }
 
   private async checkAndExecuteEventNotifications(now: moment.Moment): Promise<void> {
