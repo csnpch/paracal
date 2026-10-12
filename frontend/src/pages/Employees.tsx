@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ export const Employees = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
   const [formData, setFormData] = useState<EmployeeFormData>({
     name: ''
@@ -39,13 +40,8 @@ export const Employees = () => {
   }, [searchQuery, employees, searchEmployees]);
 
   useEffect(() => {
-    if (editingEmployee) {
-      setFormData({
-        name: editingEmployee.name
-      });
-      setIsFormOpen(true);
-    }
-  }, [editingEmployee]);
+    if (isFormOpen) nameInputRef.current?.focus();
+  }, [isFormOpen, editingEmployee]);
 
   const resetForm = () => {
     setFormData({
@@ -113,7 +109,10 @@ export const Employees = () => {
   };
 
   const handleEdit = (employee: Employee) => {
+    setFormData({ name: employee.name });
     setEditingEmployee(employee);
+    setIsFormOpen(true);
+    nameInputRef.current?.focus();
   };
 
   return (
@@ -159,6 +158,7 @@ export const Employees = () => {
                     <Label htmlFor="name">ชื่อ-นามสกุล</Label>
                     <Input
                       id="name"
+                      ref={nameInputRef}
                       value={formData.name}
                       onChange={(e) => setFormData({name: e.target.value})}
                       placeholder="กรอกชื่อ-นามสกุล"
@@ -208,6 +208,7 @@ export const Employees = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          aria-label={`แก้ไขข้อมูล ${employee.name}`}
                           onClick={() => handleEdit(employee)}
                         >
                           <Edit className="w-4 h-4" />
@@ -215,6 +216,7 @@ export const Employees = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          aria-label={`ลบข้อมูล ${employee.name}`}
                           onClick={() => handleDelete(employee)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
