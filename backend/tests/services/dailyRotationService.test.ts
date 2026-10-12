@@ -42,6 +42,15 @@ describe('daily meeting rotation rules', () => {
       { employeeId: 1 }, { employeeId: 2 },
     ]);
   });
+  test('a next-week anchor chooses C and resumes the circular queue after C', () => {
+    expect(rotation.buildAssignments('2026-10-05', '2026-10-26', employees, [], [],
+      { weekStart: '2026-10-12', employeeId: 3 }).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 2]);
+  });
+  test('a next-week anchor waits through fully closed weeks without using the turn', () => {
+    expect(rotation.buildAssignments('2026-10-05', '2026-10-26', employees,
+      ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'], [],
+      { weekStart: '2026-10-12', employeeId: 3 }).map((a: any) => a.employeeId)).toEqual([1, 3, 1]);
+  });
   test('handles the year boundary and an empty team', () => {
     expect(rotation.buildAssignments('2026-12-28', '2027-01-04', employees, ['2026-12-28'], [])).toMatchObject([
       { date: '2026-12-29', employeeId: 1 }, { date: '2027-01-04', employeeId: 2 },

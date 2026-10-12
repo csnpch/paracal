@@ -26,6 +26,8 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
       created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
     const migration = await Bun.file(new URL('../../prisma/migrations/20261009100000_daily_meeting_rotation/migration.sql', import.meta.url)).text();
     for (const sql of migration.split(';').map(s => s.trim()).filter(Boolean)) await fixture.prisma.$executeRawUnsafe(sql);
+    const anchorMigration = await Bun.file(new URL('../../prisma/migrations/20261012120000_daily_leader_start/migration.sql', import.meta.url)).text();
+    await fixture.prisma.$executeRawUnsafe(anchorMigration);
     webhook = Bun.serve({ port: 0, fetch: async req => { payloads.push(await req.json()); return new Response('accepted'); } });
   });
   beforeEach(async () => {
@@ -47,6 +49,82 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
   } });
   const monday = new Date('2026-10-12T02:00:00Z');
 
+  test('selects the next leader independently of queue order and preserves the current week', async () => {
+    await configure();
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 2]);
+    expect(await service.getSettings()).toMatchObject({ employeeOrder: [1, 2, 3], nextWeekStart: '2026-10-12', nextLeaderEmployeeId: 3 });
+    expect((await new DailyRotationService(fixture.prisma).getAssignments('2026-10-12', '2026-10-16'))[0].employeeId).toBe(3);
+  });
+  test('allows repeated next-week changes and preserves history when choosing again later', async () => {
+    await configure();
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    await service.updateSettings({ nextLeaderEmployeeId: 2 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 3, 1]);
+    moment.now = () => Date.parse('2026-10-16T02:00:00Z');
+    await service.updateSettings({ nextLeaderEmployeeId: 1 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 1, 2]);
+    expect((await service.getSettings()).nextWeekStart).toBe('2026-10-19');
+  });
+  test('changing next leader while OFF after activation preserves current and historical assignments on re-enable', async () => {
+    await configure();
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    await service.updateSettings({ enabled: false });
+    moment.now = () => Date.parse('2026-10-19T02:00:00Z');
+    expect((await service.getSettings()).preview[0]).toMatchObject({ weekStart: '2026-10-19', employeeId: 1 });
+    await service.updateSettings({ nextLeaderEmployeeId: 2 });
+    expect((await service.getSettings()).preview[0]).toMatchObject({ weekStart: '2026-10-19', employeeId: 1 });
+    expect(await service.getAssignments('2026-10-05', '2026-11-06')).toEqual([]);
+    await service.updateSettings({ enabled: true });
+    expect((await service.getAssignments('2026-10-05', '2026-11-06')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 2, 3]);
+  });
+  test('first activation can start next week with a selected person instead of the first member', async () => {
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    await service.updateSettings({ enabled: true });
+    expect(await service.getAssignments('2026-10-05', '2026-10-09')).toEqual([]);
+    expect((await service.getAssignments('2026-10-12', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([3, 1, 2]);
+  });
+  test('a chosen next leader carries over an entirely closed week and moves to Thursday for partial closure', async () => {
+    await configure();
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    await fixture.prisma.companyHoliday.createMany({ data: ['12', '13', '14'].map(d => ({ name: 'Closed', date: `2026-10-${d}` })) });
+    expect(await service.getAssignments('2026-10-12', '2026-10-16')).toMatchObject([{ date: '2026-10-15', employeeId: 3 }]);
+    await fixture.prisma.companyHoliday.createMany({ data: ['15', '16'].map(d => ({ name: 'Closed', date: `2026-10-${d}` })) });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => [a.weekStart, a.employeeId])).toEqual([
+      ['2026-10-05', 1], ['2026-10-19', 3], ['2026-10-26', 1],
+    ]);
+  });
+  test('keeps a selected turn visible during closures longer than the four-week preview', async () => {
+    await configure();
+    const closed = Array.from({ length: 28 }, (_, i) => moment.utc('2026-10-12').add(i, 'days'))
+      .filter(day => day.isoWeekday() <= 5).map(day => ({ name: 'Long closure', date: day.format('YYYY-MM-DD') }));
+    await fixture.prisma.companyHoliday.createMany({ data: closed });
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    expect((await service.getSettings()).nextLeaderEmployeeId).toBe(3);
+    moment.now = () => Date.parse('2026-10-19T02:00:00Z');
+    expect((await service.getSettings()).nextLeaderEmployeeId).toBe(3);
+    expect(await service.getAssignments('2026-11-09', '2026-11-13')).toMatchObject([{ employeeId: 3 }]);
+  });
+  test('rejects nonexistent selected members and falls back to the surviving queue if the selected member is deleted', async () => {
+    await configure();
+    await expect(service.updateSettings({ nextLeaderEmployeeId: 999 })).rejects.toThrow();
+    await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    await fixture.prisma.employee.delete({ where: { id: 3 } });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 1, 2]);
+  });
+  test('admin API saves next-week selection and the scheduler sends that same leader only once', async () => {
+    await configure(); await subscribe();
+    const routes = routeModule.createDailyRotationRoutes(service);
+    const response = await routes.handle(new Request('http://localhost/daily-rotation', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${createAdminSession()}` },
+      body: JSON.stringify({ nextLeaderEmployeeId: 3 }),
+    }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.nextLeaderEmployeeId).toBe(3);
+    await service.dispatchDue(monday); await service.dispatchDue(monday);
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0].attachments[0].content.body[1].columns[0].items[2].text).toBe('ผู้นำ daily meeting สัปดาห์นี้: C');
+  });
   test('starts disabled with the oldest employees first', async () => {
     expect(await service.getSettings()).toMatchObject({ enabled: false, notificationEnabled: false, notificationTime: '09:00', employeeOrder: [1, 2, 3] });
     expect(await service.getAssignments('2026-10-05', '2026-10-30')).toEqual([]);

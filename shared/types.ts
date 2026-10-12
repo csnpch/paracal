@@ -135,12 +135,14 @@ export interface DailyRotationSettings {
   notificationTime: string;
   startWeek: string;
   employeeOrder: number[];
+  nextWeekStart: string;
+  nextLeaderEmployeeId: number | null;
   employees: Employee[];
   preview: DailyLeaderAssignment[];
 }
 
 export type DailyRotationUpdate = Partial<Pick<DailyRotationSettings,
-  'enabled' | 'notificationEnabled' | 'notificationTime' | 'startWeek' | 'employeeOrder'>>;
+  'enabled' | 'notificationEnabled' | 'notificationTime' | 'startWeek' | 'employeeOrder'>> & { nextLeaderEmployeeId?: number };
 
 // ─── API Response ────────────────────────────────────────────
 

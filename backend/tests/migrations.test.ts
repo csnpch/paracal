@@ -43,6 +43,7 @@ describe('automatic database migrations', () => {
       const tables = await fixture.db.query<{ name: string }>(`SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public'`);
       expect(tables.rows.map(row => row.name)).toContain('daily_rotation_config');
       expect(tables.rows.map(row => row.name)).toContain('_prisma_migrations');
+      expect((await fixture.db.query(`SELECT leader_start_week, leader_start_employee_id FROM daily_rotation_config`)).rows).toEqual([]);
     } finally { await fixture.close(); }
   }, 60000);
 
@@ -63,6 +64,7 @@ describe('automatic database migrations', () => {
       ]);
       expect((await fixture.db.query(`SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL ORDER BY migration_name`)).rows).toEqual([
         { migration_name: '20260901000000_baseline' }, { migration_name: '20261009100000_daily_meeting_rotation' },
+        { migration_name: '20261012120000_daily_leader_start' },
       ]);
     } finally { await fixture.close(); }
   }, 60000);
@@ -84,7 +86,7 @@ describe('automatic database migrations', () => {
         { enabled: true, notification_enabled: true, employee_order: [1] },
       ]);
       expect((await fixture.db.query(`SELECT name FROM teams`)).rows).toEqual([{ name: 'Preserved team' }]);
-      expect((await fixture.db.query(`SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL`)).rows).toEqual([{ count: 2 }]);
+      expect((await fixture.db.query(`SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL`)).rows).toEqual([{ count: 3 }]);
     } finally { await fixture.close(); }
   }, 60000);
 
