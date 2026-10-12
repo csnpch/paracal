@@ -24,6 +24,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('daily rotation configuration user flows', () => {
+  it('labels the masked webhook input and copies the full destination', async () => {
+    const user = userEvent.setup(); render(<CronjobConfig />);
+    const card = within(await screen.findByRole('article', { name: 'Team' }));
+    const input = card.getByRole('textbox', { name: 'Webhook URL' }) as HTMLInputElement;
+    expect(input.readOnly).toBe(true);
+    expect(input.value).toBe('https://example.test/…');
+    await user.click(card.getByRole('button', { name: 'คัดลอก webhook Team' }));
+    expect(await navigator.clipboard.readText()).toBe('https://example.test/hook');
+  });
   it('keeps existing webhook settings available if rotation loading fails', async () => {
     api.getDailyRotationSettings.mockRejectedValue(new Error('rotation unavailable'));
     render(<CronjobConfig />);

@@ -34,7 +34,7 @@ import {
   Play,
   Plus,
   RotateCcw,
-  Loader2, Bell, Users, Calendar, Mic, Megaphone, Copy
+  Loader2, Bell, Users, Calendar, Mic, Megaphone, Copy, Link2
 } from 'lucide-react';
 
 export default function CronjobConfig() {
@@ -549,10 +549,18 @@ export default function CronjobConfig() {
                         <Button size="sm" variant="outline" aria-label={`ลบ ${config.name}`} onClick={() => handleDelete(config.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-sm mt-3"><span className="text-gray-500 dark:text-gray-300">Webhook URL</span><span className="flex-1 min-w-0 truncate rounded border border-gray-200 dark:border-gray-600 px-3 py-2">{maskedUrl}</span>
-                      <Button size="sm" variant="ghost" aria-label={`คัดลอก webhook ${config.name}`} onClick={async () => { try { await navigator.clipboard.writeText(config.webhook_url); toast({ title: 'คัดลอก webhook แล้ว' }); } catch { toast({ title: 'คัดลอกไม่สำเร็จ', variant: 'destructive' }); } }}><Copy className="h-4 w-4" /></Button></div>
                   </CardHeader>
-                  <CardContent className="pt-0">
+                  <CardContent className="pt-3">
+                    <div className="flex items-start gap-4 pb-4">
+                      <Link2 className="h-5 w-5 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <Label htmlFor={`webhook-url-${config.id}`} className="font-medium">Webhook URL</Label>
+                        <div className="flex items-center gap-2">
+                          <Input id={`webhook-url-${config.id}`} value={maskedUrl} readOnly className="flex-1 min-w-0 border-gray-200 dark:border-gray-600 bg-transparent" />
+                          <Button size="sm" variant="ghost" aria-label={`คัดลอก webhook ${config.name}`} onClick={async () => { try { await navigator.clipboard.writeText(config.webhook_url); toast({ title: 'คัดลอก webhook แล้ว' }); } catch { toast({ title: 'คัดลอกไม่สำเร็จ', variant: 'destructive' }); } }}><Copy className="h-4 w-4" /></Button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-4 border-t border-gray-200 dark:border-gray-600 py-4">
                       <Calendar className="h-5 w-5 shrink-0" /><div className="flex-1"><Label htmlFor={`events-${config.id}`} className="font-medium">แจ้งเหตุการณ์</Label>
                         <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">{config.notification_type === 'weekly'
