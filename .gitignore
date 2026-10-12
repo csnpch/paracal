@@ -36,3 +36,4 @@ Thumbs.db
 # package-lock.json  — needed for npm ci in frontend Dockerfile
 # bun.lock           — needed for bun install --frozen-lockfile in backend Dockerfile
 yarn.lock
+/output
