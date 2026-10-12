@@ -8,6 +8,7 @@ import { eventsRoutes } from './routes/events';
 import { holidaysRoutes } from './routes/holidays';
 import { companyHolidaysRoutes } from './routes/companyHolidays';
 import { cronjobRoutes } from './routes/cronjobs';
+import { dailyRotationRoutes } from './routes/dailyRotation';
 import { authRoutes } from './routes/auth';
 import { logsRoutes } from './routes/logs';
 import { worklogsRoutes } from './routes/worklogs';
@@ -109,6 +110,7 @@ async function startServer() {
     .use(holidaysRoutes)
     .use(companyHolidaysRoutes)
     .use(cronjobRoutes)
+    .use(dailyRotationRoutes)
     .use(authRoutes)
     .use(logsRoutes)
     .use(worklogsRoutes)

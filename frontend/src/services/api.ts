@@ -69,6 +69,13 @@ export class ApiClient {
 
 export const apiClient = new ApiClient();
 
+export type { DailyRotationSettings, DailyRotationUpdate, DailyLeaderAssignment } from '../../../shared/types';
+import type { DailyRotationSettings, DailyRotationUpdate, DailyLeaderAssignment } from '../../../shared/types';
+export const getDailyRotationSettings = () => apiClient.get<ApiResponse<DailyRotationSettings>>('/daily-rotation');
+export const updateDailyRotationSettings = (updates: DailyRotationUpdate) => apiClient.put<ApiResponse<DailyRotationSettings>>('/daily-rotation', updates);
+export const getDailyLeaderAssignments = (start: string, end: string, signal?: AbortSignal) =>
+  apiClient.get<ApiResponse<DailyLeaderAssignment[]>>(`/daily-rotation/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { signal });
+
 export interface DashboardSummary {
   monthlyStats: {
     totalEvents: number;
@@ -149,6 +156,7 @@ export interface CronjobConfig {
   id: number;
   name: string;
   enabled: boolean;
+  daily_leader_enabled?: boolean;
   schedule_time: string;
   webhook_url: string;
   notification_days: number;

@@ -7,6 +7,7 @@ import type { JiraWorklogEntry } from '@/services/api';
 import { LEAVE_TYPE_LABELS, LEAVE_TYPE_THEME_COLORS, formatDate, EVENT_CONTACT_ADMIN_MESSAGE } from '@/lib/utils';
 import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
 import moment from 'moment';
+import { calendarEventName, canEditCalendarEvent } from '@/lib/dailyRotation';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface EventDetailsModalProps {
@@ -173,12 +174,12 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
                         <User className="w-3 h-3 flex-shrink-0" />
-                        <span className="font-normal text-sm truncate">{getEmployeeName(event.employeeId)}</span>
+                        <span className="font-normal text-sm truncate">{calendarEventName(event, getEmployeeName(event.employeeId))}</span>
                       </div>
 
                       <div className="flex items-center space-x-2 mb-1">
                         <FileText className="w-3 h-3 flex-shrink-0" />
-                        <span className="text-xs">{LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS]}</span>
+                        <span className="text-xs">{event.kind === 'daily-meeting' ? 'ผู้นำ daily meeting' : LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS]}</span>
                         {durationLabel && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap">
                             {durationLabel}
@@ -194,7 +195,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                       )}
                     </div>
 
-                    {isAdminAuthenticated && (
+                    {isAdminAuthenticated && canEditCalendarEvent(event) && (
                       <div className="flex space-x-1 ml-2">
                         {onEditEvent && (
                           <Button

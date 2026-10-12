@@ -12,6 +12,8 @@ import { Checkbox } from '../components/ui/checkbox';
 import { toast } from '../hooks/use-toast';
 import { useTheme } from '../contexts/ThemeContext';
 import { Layout } from '../components/Layout';
+import { DailyRotationPanel } from '../components/DailyRotationPanel';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import {
   getCronjobConfigs,
   getCronjobStatus,
@@ -19,6 +21,10 @@ import {
   updateCronjobConfig,
   deleteCronjobConfig,
   testCronjobNotification,
+  getDailyRotationSettings,
+  updateDailyRotationSettings,
+  type DailyRotationSettings,
+  type DailyRotationUpdate,
   type CronjobConfig,
   type CronjobStatus
 } from '../services/api';
@@ -28,7 +34,7 @@ import {
   Play,
   Plus,
   RotateCcw,
-  Loader2
+  Loader2, Bell, Users, Calendar, Mic, Megaphone, Copy
 } from 'lucide-react';
 
 export default function CronjobConfig() {
@@ -43,6 +49,33 @@ export default function CronjobConfig() {
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
   const [testingConfigId, setTestingConfigId] = useState<number | null>(null);
   const [testMessage, setTestMessage] = useState('');
+  const [rotation, setRotation] = useState<DailyRotationSettings | null>(null);
+  const [savingRotation, setSavingRotation] = useState(false);
+  const [savingConfig, setSavingConfig] = useState<number | null>(null);
+  const [notificationTime, setNotificationTime] = useState('09:00');
+  const [notificationEnabled, setNotificationEnabled] = useState(false);
+  useEffect(() => {
+    if (rotation) { setNotificationTime(rotation.notificationTime); setNotificationEnabled(rotation.notificationEnabled); }
+  }, [rotation]);
+  const saveRotation = async (updates: DailyRotationUpdate) => {
+    setSavingRotation(true);
+    try {
+      const response = await updateDailyRotationSettings(updates);
+      if (!response.success || !response.data) throw new Error(response.error || 'บันทึกไม่สำเร็จ');
+      setRotation(response.data);
+      toast({ title: 'บันทึกแล้ว', variant: 'success' });
+    } catch (error) { toast({ title: 'บันทึกไม่สำเร็จ', description: error instanceof Error ? error.message : 'กรุณาลองใหม่', variant: 'destructive' }); }
+    finally { setSavingRotation(false); }
+  };
+  const toggleNotification = async (config: CronjobConfig, updates: { enabled?: boolean; daily_leader_enabled?: boolean }) => {
+    setSavingConfig(config.id);
+    try {
+      const response = await updateCronjobConfig(config.id, updates);
+      if (!response.success) throw new Error(response.error || 'บันทึกไม่สำเร็จ');
+      setConfigs(current => current.map(c => c.id === config.id ? { ...c, ...updates } : c));
+    } catch (error) { toast({ title: 'บันทึกไม่สำเร็จ', description: error instanceof Error ? error.message : 'กรุณาลองใหม่', variant: 'destructive' }); }
+    finally { setSavingConfig(null); }
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -57,10 +90,12 @@ export default function CronjobConfig() {
 
   const loadConfigs = async () => {
     try {
-      const [configResponse, statusResponse] = await Promise.all([
+      const [configResponse, statusResponse, rotationResponse] = await Promise.all([
         getCronjobConfigs(),
-        getCronjobStatus()
+        getCronjobStatus(),
+        getDailyRotationSettings().catch(() => ({ success: false, data: undefined, error: 'Failed to load rotation' }))
       ]);
+      if (rotationResponse.success && rotationResponse.data) setRotation(rotationResponse.data);
 
       if (configResponse.success && configResponse.data) {
         setConfigs(configResponse.data);
@@ -69,6 +104,7 @@ export default function CronjobConfig() {
       if (statusResponse.success && statusResponse.data) {
         setStatuses(statusResponse.data);
       }
+      if (!rotationResponse.success) throw new Error(rotationResponse.error || 'Failed to load rotation');
     } catch (error) {
       toast({
         title: 'Error',
@@ -83,10 +119,12 @@ export default function CronjobConfig() {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      const [configResponse, statusResponse] = await Promise.all([
+      const [configResponse, statusResponse, rotationResponse] = await Promise.all([
         getCronjobConfigs(),
-        getCronjobStatus()
+        getCronjobStatus(),
+        getDailyRotationSettings().catch(() => ({ success: false, data: undefined, error: 'Failed to load rotation' }))
       ]);
+      if (rotationResponse.success && rotationResponse.data) setRotation(rotationResponse.data);
 
       if (configResponse.success && configResponse.data) {
         setConfigs(configResponse.data);
@@ -95,6 +133,7 @@ export default function CronjobConfig() {
       if (statusResponse.success && statusResponse.data) {
         setStatuses(statusResponse.data);
       }
+      if (!rotationResponse.success) throw new Error(rotationResponse.error || 'Failed to load rotation');
 
       // Show success notification that auto-closes in 2 seconds
       toast({
@@ -237,28 +276,6 @@ export default function CronjobConfig() {
     }
   };
 
-  const handleToggleEnabled = async (config: CronjobConfig, enabled: boolean) => {
-    try {
-      const response = await updateCronjobConfig(config.id, { enabled });
-      if (response.success) {
-        toast({
-          title: 'Success',
-          description: `Cronjob ${enabled ? 'enabled' : 'disabled'} successfully`,
-          variant: 'success'
-        });
-        loadConfigs();
-      } else {
-        throw new Error(response.error || 'Failed to update configuration');
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to update configuration',
-        variant: 'destructive'
-      });
-    }
-  };
-
   const openEditDialog = (config: CronjobConfig) => {
     setEditingConfig(config);
     setFormData({
@@ -309,7 +326,7 @@ export default function CronjobConfig() {
     const status = statuses.find(s => s.id === config.id);
 
     // If no status found from backend, fall back to config.enabled
-    const isEnabled = status ? status.enabled : config.enabled;
+    const isEnabled = config.enabled || (config.daily_leader_enabled && rotation?.enabled && rotation?.notificationEnabled);
     const isRunning = status?.running ?? false;
 
     if (isEnabled && isRunning) {
@@ -353,7 +370,7 @@ export default function CronjobConfig() {
                   Add Cronjob
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md" aria-describedby={undefined}>
                 <DialogHeader>
                   <DialogTitle>Create Cronjob Configuration</DialogTitle>
                 </DialogHeader>
@@ -490,104 +507,77 @@ export default function CronjobConfig() {
           </div>
         </div>
 
-        <div className="grid gap-4">
-          {configs.length === 0 ? (
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
-              <CardContent className="flex items-center justify-center py-8">
-                <p className="text-gray-500 dark:text-gray-400">No cronjob configurations found. Create your first one!</p>
+        <Tabs defaultValue="notifications" className="space-y-5">
+          <TabsList className="bg-transparent border-b border-gray-200 dark:border-gray-600 rounded-none h-auto p-0 gap-3">
+            <TabsTrigger value="rotation" className="gap-2 px-4 py-3"><Users className="h-4 w-4" />Daily Rotation</TabsTrigger>
+            <TabsTrigger value="notifications" className="gap-2 px-4 py-3"><Bell className="h-4 w-4" />Notifications</TabsTrigger>
+          </TabsList>
+          <TabsContent value="rotation">
+            {rotation ? <DailyRotationPanel settings={rotation} saving={savingRotation} onSave={saveRotation} /> : <p role="alert">โหลดการตั้งค่าไม่สำเร็จ กรุณากด Refresh</p>}
+          </TabsContent>
+          <TabsContent value="notifications" className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300">เลือกเรื่องที่แจ้งเตือนแยกกันในแต่ละ webhook</p>
+            {rotation && <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
+              <CardHeader><CardTitle className="text-lg">การแจ้งเตือนผู้นำ daily meeting</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2"><Switch id="leader-notification-global" checked={notificationEnabled} disabled={savingRotation} onCheckedChange={setNotificationEnabled} />
+                    <Label htmlFor="leader-notification-global">เปิดการแจ้งเตือนผู้นำ</Label></div>
+                  <div className="flex items-center gap-3"><Label htmlFor="leader-notification-time">เวลาแจ้งเตือนผู้นำ daily meeting</Label>
+                    <Input id="leader-notification-time" type="time" value={notificationTime} disabled={savingRotation} className="w-32" onChange={e => setNotificationTime(e.target.value)} /></div>
+                  <Button disabled={savingRotation || !notificationTime} onClick={() => void saveRotation({ notificationEnabled, notificationTime })}>บันทึกการแจ้งเตือนผู้นำ</Button>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-300">ใช้เวลาเดียวกันกับทุก webhook ที่เปิดรับ • แจ้งครั้งเดียวในวันทำงานแรกของสัปดาห์</p>
+                <p className="text-sm text-gray-500 dark:text-gray-300">หากวันจันทร์หยุดจะเลื่อนไปวันทำงานแรก ถ้าหยุดครบสัปดาห์จะไม่ใช้คิว</p>
+                {!rotation.enabled && <p className="text-sm text-amber-600 dark:text-amber-300">ฟีเจอร์ Daily Rotation ปิดอยู่ การแจ้งเตือนผู้นำพักไว้</p>}
               </CardContent>
-            </Card>
-          ) : (
-            configs
-              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-              .map((config) => (
-                <Card key={config.id} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <CardTitle className="text-lg text-gray-900 dark:text-white">{config.name}</CardTitle>
-                        {getStatusBadge(config)}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          checked={config.enabled}
-                          onCheckedChange={(checked) => handleToggleEnabled(config, checked)}
-                        />
-                        <Button size="sm" variant="outline" onClick={() => openTestDialog(config.id)}>
-                          <Play className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => openEditDialog(config)}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDelete(config.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+            </Card>}
+            <div className="grid gap-4">
+              {configs.length === 0 && <Card><CardContent className="py-8 text-center">No cronjob configurations found. Create your first one!</CardContent></Card>}
+              {[...configs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(config => {
+                const leaderActive = rotation?.enabled && rotation?.notificationEnabled;
+                const next = rotation?.preview.find(a => a.date >= new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }));
+                let maskedUrl = '…';
+                try { maskedUrl = new URL(config.webhook_url).origin + '/…'; } catch { /* invalid legacy URL is editable in its existing form */ }
+                return <Card key={config.id} role="article" aria-label={config.name} className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0"><Megaphone className="h-5 w-5 shrink-0" /><CardTitle className="text-lg break-words">{config.name}</CardTitle>{getStatusBadge(config)}</div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" aria-label={`ทดสอบ ${config.name}`} onClick={() => openTestDialog(config.id)}><Play className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="outline" aria-label={`แก้ไข ${config.name}`} onClick={() => openEditDialog(config)}><Edit className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="outline" aria-label={`ลบ ${config.name}`} onClick={() => handleDelete(config.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                       </div>
                     </div>
+                    <div className="flex items-center gap-3 text-sm mt-3"><span className="text-gray-500 dark:text-gray-300">Webhook URL</span><span className="flex-1 min-w-0 truncate rounded border border-gray-200 dark:border-gray-600 px-3 py-2">{maskedUrl}</span>
+                      <Button size="sm" variant="ghost" aria-label={`คัดลอก webhook ${config.name}`} onClick={async () => { try { await navigator.clipboard.writeText(config.webhook_url); toast({ title: 'คัดลอก webhook แล้ว' }); } catch { toast({ title: 'คัดลอกไม่สำเร็จ', variant: 'destructive' }); } }}><Copy className="h-4 w-4" /></Button></div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="font-normal text-gray-700 dark:text-gray-300">Schedule</p>
-                        <p className="text-gray-900 dark:text-white">{config.schedule_time}</p>
-                      </div>
-                      <div>
-                        <p className="font-normal text-gray-700 dark:text-gray-300">Notification Type</p>
-                        <p className="text-gray-900 dark:text-white">
-                          {config.notification_type === 'weekly' ? 'Weekly' : 'Daily'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-normal text-gray-700 dark:text-gray-300">
-                          {config.notification_type === 'weekly' ? 'Weekly Scope' : 'Notification Days'}
-                        </p>
-                        <p className="text-gray-900 dark:text-white">
-                          {config.notification_type === 'weekly'
-                            ? (config.weekly_scope === 'current' ? 'สัปดาห์นี้' : 'สัปดาห์หน้า')
-                            : (config.notification_days === 0 ? 'Today' :
-                              config.notification_days === 1 ? 'Tomorrow' :
-                                `${config.notification_days} days ahead`)
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <p className="font-normal text-gray-700 dark:text-gray-300">Created</p>
-                        <p className="text-gray-900 dark:text-white">{new Date(config.created_at).toLocaleDateString()}</p>
-                      </div>
-                      <div>
-                        <p className="font-normal text-gray-700 dark:text-gray-300">Updated</p>
-                        <p className="text-gray-900 dark:text-white">{new Date(config.updated_at).toLocaleDateString()}</p>
-                      </div>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center gap-4 border-t border-gray-200 dark:border-gray-600 py-4">
+                      <Calendar className="h-5 w-5 shrink-0" /><div className="flex-1"><Label htmlFor={`events-${config.id}`} className="font-medium">แจ้งเหตุการณ์</Label>
+                        <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">{config.notification_type === 'weekly'
+                          ? `Weekly • ${(config.weekly_days || []).map(d => weekdays.find(w => w.value === d)?.label).filter(Boolean).join(', ')} • ${config.schedule_time} • ${config.weekly_scope === 'next' ? 'สัปดาห์หน้า' : 'สัปดาห์นี้'}`
+                          : `Daily • ${config.notification_days === 0 ? 'Today' : config.notification_days === 1 ? 'Tomorrow' : `${config.notification_days} days ahead`} • ${config.schedule_time}`}</p></div>
+                      <Switch id={`events-${config.id}`} className="data-[state=checked]:bg-green-500" checked={config.enabled} disabled={savingConfig !== null} onCheckedChange={enabled => void toggleNotification(config, { enabled })} />
+                      <span className="text-sm hidden sm:block">{config.enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>
                     </div>
-                    {config.notification_type === 'weekly' && config.weekly_days && config.weekly_days.length > 0 && (
-                      <div className="mt-3">
-                        <p className="font-normal text-gray-700 dark:text-gray-300 mb-1">Notification Days</p>
-                        <div className="flex flex-wrap gap-1">
-                          {config.weekly_days.map(dayValue => {
-                            const day = weekdays.find(w => w.value === dayValue);
-                            return day ? (
-                              <Badge key={dayValue} variant="secondary" className="text-xs">
-                                {day.label}
-                              </Badge>
-                            ) : null;
-                          })}
-                        </div>
+                    <div className="flex items-center gap-4 border-t border-gray-200 dark:border-gray-600 pt-4">
+                      <Mic className="h-5 w-5 shrink-0" /><div className="flex-1"><Label htmlFor={`leader-${config.id}`} className="font-medium">การแจ้งเตือนผู้นำ daily meeting</Label>
+                        <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">วันทำงานแรกของสัปดาห์ • {rotation?.notificationTime || '09:00'}</p>
+                        {config.daily_leader_enabled && leaderActive && next && <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">ครั้งถัดไป: {next.date} • {next.employeeName}</p>}
                       </div>
-                    )}
-                    <div className="mt-3">
-                      <p className="font-normal text-gray-700 dark:text-gray-300 mb-1">Webhook URL</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 break-all bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                        {config.webhook_url}
-                      </p>
+                      <Switch id={`leader-${config.id}`} className="data-[state=checked]:bg-green-500" checked={!!config.daily_leader_enabled} disabled={savingConfig !== null || !rotation} onCheckedChange={daily_leader_enabled => void toggleNotification(config, { daily_leader_enabled })} />
+                      {config.daily_leader_enabled && !leaderActive ? <Badge variant="outline" className="text-amber-600 dark:text-amber-300">พักตามฟีเจอร์</Badge> : <span className="text-sm hidden sm:block">{config.daily_leader_enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>}
                     </div>
                   </CardContent>
-                </Card>
-              ))
-          )}
-        </div>
+                </Card>;
+              })}
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Edit Cronjob Configuration</DialogTitle>
             </DialogHeader>
@@ -723,7 +713,7 @@ export default function CronjobConfig() {
         </Dialog>
 
         <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Test Notification</DialogTitle>
             </DialogHeader>
