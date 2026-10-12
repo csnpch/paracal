@@ -4,13 +4,14 @@ import { NotificationService } from './notificationService';
 import { EventService } from './eventService';
 import moment from 'moment';
 import Logger from '../utils/logger';
+import { DailyRotationService } from './dailyRotationService';
 
 export class CronjobService {
   private get prisma() { return getPrisma(); }
   private eventService: EventService;
   private lastExecutionTimes: Map<number, string> = new Map();
 
-  constructor() {
+  constructor(private rotationService = new DailyRotationService()) {
     this.eventService = new EventService();
   }
 
@@ -21,6 +22,7 @@ export class CronjobService {
       id: raw.id,
       name: raw.name,
       enabled: raw.enabled,
+      daily_leader_enabled: raw.dailyLeaderEnabled,
       schedule_time: raw.scheduleTime,
       webhook_url: raw.webhookUrl,
       notification_days: raw.notificationDays,
@@ -56,6 +58,7 @@ export class CronjobService {
       data: {
         name: config.name,
         enabled: config.enabled,
+        dailyLeaderEnabled: config.daily_leader_enabled ?? false,
         scheduleTime: config.schedule_time,
         webhookUrl: config.webhook_url,
         notificationDays: config.notification_days,
@@ -76,6 +79,7 @@ export class CronjobService {
     const data: any = { updatedAt: new Date() };
     if (updates.name !== undefined) data.name = updates.name;
     if (updates.enabled !== undefined) data.enabled = updates.enabled;
+    if (updates.daily_leader_enabled !== undefined) data.dailyLeaderEnabled = updates.daily_leader_enabled;
     if (updates.schedule_time !== undefined) data.scheduleTime = updates.schedule_time;
     if (updates.webhook_url !== undefined) data.webhookUrl = updates.webhook_url;
     if (updates.notification_days !== undefined) data.notificationDays = updates.notification_days;
@@ -192,6 +196,15 @@ export class CronjobService {
 
   async checkAndExecuteScheduledNotifications(): Promise<void> {
     const now = moment().utcOffset('+07:00');
+    await Promise.all([
+      this.checkAndExecuteEventNotifications(now),
+      this.rotationService.dispatchDue(now.toDate()).catch(error => {
+        Logger.error('Daily meeting rotation scheduler failed:', error);
+      }),
+    ]);
+  }
+
+  private async checkAndExecuteEventNotifications(now: moment.Moment): Promise<void> {
     const currentTime = now.format('HH:mm');
     const currentDate = now.format('YYYY-MM-DD');
     const currentKey = `${currentDate}-${currentTime}`;

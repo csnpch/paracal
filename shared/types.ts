@@ -40,6 +40,7 @@ export interface UpdateEmployeeRequest {
 
 export interface Event {
   id: number;
+  kind?: 'daily-meeting'; // Read-only calendar projection, separate from leave records.
   employeeId: number;
   employeeName: string;
   leaveType: LeaveType;
@@ -110,6 +111,7 @@ export interface CronjobConfig {
   id: number;
   name: string;
   enabled: boolean;
+  daily_leader_enabled?: boolean;
   schedule_time: string;
   webhook_url: string;
   notification_days: number;
@@ -119,6 +121,26 @@ export interface CronjobConfig {
   created_at: string;
   updated_at: string;
 }
+
+export interface DailyLeaderAssignment {
+  weekStart: string;
+  date: string;
+  employeeId: number;
+  employeeName: string;
+}
+
+export interface DailyRotationSettings {
+  enabled: boolean;
+  notificationEnabled: boolean;
+  notificationTime: string;
+  startWeek: string;
+  employeeOrder: number[];
+  employees: Employee[];
+  preview: DailyLeaderAssignment[];
+}
+
+export type DailyRotationUpdate = Partial<Pick<DailyRotationSettings,
+  'enabled' | 'notificationEnabled' | 'notificationTime' | 'startWeek' | 'employeeOrder'>>;
 
 // ─── API Response ────────────────────────────────────────────
 

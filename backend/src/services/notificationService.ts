@@ -3,6 +3,7 @@ import { LEAVE_TYPE_LABELS } from '../../../shared/constants';
 import type { LeaveType } from '../../../shared/types';
 import config from '../config';
 import axios from 'axios';
+import moment from 'moment';
 import Logger from '../utils/logger';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -213,6 +214,15 @@ function createAdaptiveCard(headerText: string, summaryText: string, eventListTe
 // ─── Public API ──────────────────────────────────────────────
 
 export class NotificationService {
+  static createDailyLeaderPayload(assignment: import('../../../shared/types').DailyLeaderAssignment): TeamsNotificationPayload {
+    const end = moment.utc(assignment.weekStart).add(6, 'days').format('YYYY-MM-DD');
+    return createAdaptiveCard('การแจ้งเตือนผู้นำ daily meeting',
+      `สัปดาห์ ${assignment.weekStart} – ${end}`, `ผู้นำ daily meeting สัปดาห์นี้: ${assignment.employeeName}`);
+  }
+
+  static async sendDailyLeaderNotification(webhookUrl: string, assignment: import('../../../shared/types').DailyLeaderAssignment) {
+    return this.sendNotification(webhookUrl, this.createDailyLeaderPayload(assignment));
+  }
   /**
    * Create daily notification payload.
    */

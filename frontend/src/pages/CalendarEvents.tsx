@@ -23,6 +23,8 @@ import { toast } from '@/hooks/use-toast';
 import { LEAVE_TYPE_LABELS } from '@/lib/utils';
 import moment from 'moment';
 import { useAuth } from '@/contexts/AuthContext';
+import { getDailyLeaderAssignments } from '@/services/api';
+import { toDailyLeaderEvents } from '@/lib/dailyRotation';
 
 export type ViewMode = 'month' | 'week' | 'day';
 
@@ -63,6 +65,8 @@ const CalendarEvents = () => {
   const [highlightedDates, setHighlightedDates] = useState<string[]>([]);
   const [currentHoverEvent, setCurrentHoverEvent] = useState<{ startDate: string; endDate: string } | null>(null);
   const [filteredEmployeeIds, setFilteredEmployeeIds] = useState<number[]>([]);
+  const [leaderEvents, setLeaderEvents] = useState<Event[]>([]);
+  const [leaderError, setLeaderError] = useState<string | null>(null);
 
   useEffect(() => {
     setStoredCalendarState(currentDate, viewMode, calendarMode);
@@ -154,7 +158,8 @@ const CalendarEvents = () => {
   const suppressWorklogEvents = calendarMode === 'worklogs' && (!selectedWorklogAuthorId || !matchedWorklogEmployeeId);
 
   const getModalEventsForDate = useCallback((date: Date): Event[] => {
-    const dayEvents = getEventsForDate(date);
+    const dateString = moment(date).format('YYYY-MM-DD');
+    const dayEvents = [...getEventsForDate(date), ...(calendarMode === 'worklogs' ? [] : leaderEvents.filter(e => e.date === dateString))];
     if (calendarMode === 'worklogs') {
       if (!selectedWorklogAuthorId || !matchedWorklogEmployeeId) return [];
       return dayEvents.filter((event) => event.employeeId === matchedWorklogEmployeeId);
@@ -163,7 +168,7 @@ const CalendarEvents = () => {
       return dayEvents.filter((event) => filteredEmployeeIds.includes(event.employeeId));
     }
     return dayEvents;
-  }, [calendarMode, selectedWorklogAuthorId, matchedWorklogEmployeeId, filteredEmployeeIds, getEventsForDate]);
+  }, [calendarMode, selectedWorklogAuthorId, matchedWorklogEmployeeId, filteredEmployeeIds, getEventsForDate, leaderEvents]);
 
   const visibleWorklogEntries = useMemo(() => {
     if (calendarMode !== 'worklogs' || !selectedWorklogAuthorId) return [];
@@ -209,6 +214,25 @@ const CalendarEvents = () => {
     }
     return combined;
   }, [currentYearHolidays, startYearHolidays, endYearHolidays, currentYear, startYear, endYear]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const firstVisible = moment(currentDate).startOf('month').startOf('week');
+    const start = firstVisible.format('YYYY-MM-DD');
+    const end = firstVisible.clone().add(41, 'days').format('YYYY-MM-DD');
+    getDailyLeaderAssignments(start, end, controller.signal).then(response => {
+      if (controller.signal.aborted) return;
+      if (!response.success || !response.data) throw new Error(response.error || 'โหลดผู้นำ daily meeting ไม่สำเร็จ');
+      setLeaderEvents(toDailyLeaderEvents(response.data));
+      setLeaderError(null);
+    }).catch(err => {
+      if (!controller.signal.aborted) {
+        setLeaderEvents([]);
+        setLeaderError(err instanceof Error ? err.message : 'โหลดผู้นำ daily meeting ไม่สำเร็จ');
+      }
+    });
+    return () => controller.abort();
+  }, [currentDate, companyHolidays]);
 
   const isCompanyHoliday = (date: Date) => {
     if (!Array.isArray(companyHolidays)) return null;
@@ -569,9 +593,9 @@ const CalendarEvents = () => {
             Error: {error}
           </div>
         )}
-        {!isMobile && (error || (calendarMode === 'worklogs' && worklogsError)) && (
+        {!isMobile && (error || leaderError || (calendarMode === 'worklogs' && worklogsError)) && (
           <div className="bg-red-50 dark:bg-red-800/30 border border-red-200 dark:border-red-600 text-red-700 dark:text-red-300 px-4 py-3 rounded mb-4">
-            Error: {error || worklogsError}
+            Error: {error || leaderError || worklogsError}
           </div>
         )}
 
@@ -587,7 +611,7 @@ const CalendarEvents = () => {
                   <CalendarGrid
                     currentDate={currentDate}
                     viewMode={viewMode}
-                    events={events}
+                    events={calendarMode === 'worklogs' ? events : [...events, ...leaderEvents]}
                     employees={employees}
                     companyHolidays={companyHolidays}
                     highlightedDates={highlightedDates}

@@ -58,6 +58,7 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     body: t.Object({
       name: t.String(),
       enabled: t.Boolean(),
+      daily_leader_enabled: t.Optional(t.Boolean()),
       schedule_time: t.String(),
       webhook_url: t.String(),
       notification_days: t.Number(),
@@ -82,6 +83,7 @@ export const cronjobRoutes = new Elysia({ prefix: '/cronjobs' })
     body: t.Object({
       name: t.Optional(t.String()),
       enabled: t.Optional(t.Boolean()),
+      daily_leader_enabled: t.Optional(t.Boolean()),
       schedule_time: t.Optional(t.String()),
       webhook_url: t.Optional(t.String()),
       notification_days: t.Optional(t.Number()),

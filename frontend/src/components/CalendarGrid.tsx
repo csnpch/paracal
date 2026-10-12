@@ -16,6 +16,7 @@ import { isViewingCurrentCalendarPeriod } from '@/lib/calendarStorage';
 import { formatWorklogDuration, formatWorklogHours, getJiraIssueUrl, getWorklogDayTotalSeconds, getWorklogDeficitLabel, shouldShowWorklogDeficitBorder, WORKLOG_TARGET_SECONDS } from '@/lib/worklog';
 import { toast } from '@/hooks/use-toast';
 import moment from 'moment';
+import { calendarEventName } from '@/lib/dailyRotation';
 
 interface CalendarGridProps {
   currentDate: Date;
@@ -324,8 +325,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
             </div>
             <div className="space-y-2.5">
               {dayEvents.map((evt) => {
-                const empName = getEmployeeName(evt.employeeId);
-                const typeLabel = LEAVE_TYPE_LABELS[evt.leaveType as keyof typeof LEAVE_TYPE_LABELS] || evt.leaveType;
+                const empName = calendarEventName(evt, getEmployeeName(evt.employeeId));
+                const typeLabel = evt.kind === 'daily-meeting' ? 'ผู้นำ daily meeting' : LEAVE_TYPE_LABELS[evt.leaveType as keyof typeof LEAVE_TYPE_LABELS] || evt.leaveType;
                 const durationLabel = evt.leaveDuration === 'morning' ? ' (morning)' : evt.leaveDuration === 'afternoon' ? ' (afternoon)' : '';
 
                 return (
@@ -617,12 +618,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
     const hasPrevious = prevEvents.some(e =>
       e.employeeId === event.employeeId &&
+      e.kind === event.kind &&
       e.leaveType === event.leaveType &&
       !isWeekend(prevDate.toDate()) // Don't connect over weekends
     );
 
     const hasNext = nextEvents.some(e =>
       e.employeeId === event.employeeId &&
+      e.kind === event.kind &&
       e.leaveType === event.leaveType &&
       !isWeekend(nextDate.toDate()) // Don't connect over weekends
     );
@@ -631,7 +634,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   };
 
   const renderEventChip = (event: Event, eventIndex: number, date: Date) => {
-    const employeeName = getEmployeeName(event.employeeId);
+    const employeeName = calendarEventName(event, getEmployeeName(event.employeeId));
     const { hasPrevious, hasNext } = getEventContinuity(event, date);
 
     let borderRadius = 'rounded';
@@ -639,7 +642,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     else if (hasPrevious && !hasNext) borderRadius = 'rounded-l-none rounded-r';
     else if (!hasPrevious && hasNext) borderRadius = 'rounded-l rounded-r-none';
 
-    const typeLabel = LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
+    const typeLabel = event.kind === 'daily-meeting' ? 'ผู้นำ daily meeting' : LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
     const isStart = moment(date).isSame(event.startDate, 'day');
     const isEnd = moment(date).isSame(event.endDate, 'day');
     const dayIsMorning = (event.leaveDuration === 'morning' && isEnd) || ((event.leaveDuration === 'full_morning' || event.leaveDuration === 'afternoon_morning') && isEnd);
@@ -1495,9 +1498,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                         {/* Events */}
                         {dayEvents.map((event) => {
-                          const employeeName = getEmployeeName(event.employeeId);
+                          const employeeName = calendarEventName(event, getEmployeeName(event.employeeId));
                           const colorClass = LEAVE_TYPE_COLORS_SOLID[event.leaveType as keyof typeof LEAVE_TYPE_COLORS_SOLID] || LEAVE_TYPE_COLORS_SOLID.other;
-                          const label = LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
+                          const label = event.kind === 'daily-meeting' ? 'ผู้นำ daily meeting' : LEAVE_TYPE_LABELS[event.leaveType as keyof typeof LEAVE_TYPE_LABELS] || event.leaveType;
 
                           const isStart = moment(date).isSame(event.startDate, 'day');
                           const isEnd = moment(date).isSame(event.endDate, 'day');

@@ -45,6 +45,7 @@ model CronjobConfig {
   id               Int      @id @default(autoincrement())
   name             String   @unique
   enabled          Boolean  @default(true)
+  dailyLeaderEnabled Boolean @default(false) @map("daily_leader_enabled")
   scheduleTime     String   @map("schedule_time")
   webhookUrl       String   @map("webhook_url")
   notificationDays Int      @default(1) @map("notification_days")
@@ -56,6 +57,38 @@ model CronjobConfig {
 
   @@index([enabled])
   @@map("cronjob_config")
+}
+
+model DailyRotationConfig {
+  id                  Int     @id @default(1)
+  enabled             Boolean @default(false)
+  notificationEnabled Boolean @default(false) @map("notification_enabled")
+  notificationTime    String  @default("09:00") @map("notification_time")
+  startWeek           String  @map("start_week")
+  employeeOrder       Json    @default("[]") @map("employee_order")
+
+  @@map("daily_rotation_config")
+}
+
+model DailyMeetingWeek {
+  weekStart    String  @id @map("week_start")
+  date         String  // Empty for a fully closed historical week.
+  employeeId   Int?    @map("employee_id")
+  employeeName String? @map("employee_name")
+
+  @@map("daily_meeting_weeks")
+}
+
+model DailyLeaderDelivery {
+  id         Int      @id @default(autoincrement())
+  weekStart  String   @map("week_start")
+  webhookKey String   @map("webhook_key")
+  configId   Int      @map("config_id")
+  status     String   @default("claimed")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([weekStart, webhookKey])
+  @@map("daily_leader_deliveries")
 }
 
 model CompanyHoliday {
