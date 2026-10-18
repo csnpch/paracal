@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CalendarEvents from './CalendarEvents';
-vi.mock('../lib/calendarStorage', () => ({ getStoredCalendarState: () => ({ currentDate: new Date('2026-10-15T10:00:00'), viewMode: 'month', calendarMode: 'events' }), setStoredCalendarState: vi.fn() }));
+const calendarSession = vi.hoisted(() => ({ currentDate: new Date('2026-10-15T10:00:00') }));
+vi.mock('../lib/calendarStorage', () => ({ getStoredCalendarState: () => ({ currentDate: calendarSession.currentDate, viewMode: 'month', calendarMode: 'events' }), setStoredCalendarState: vi.fn() }));
 const leave = { id: 7, employeeId: 2, employeeName: 'B', leaveType: 'vacation', startDate: '2026-10-15', endDate: '2026-10-15', createdAt: '2026-10-01', updatedAt: '2026-10-01' };
 const api = vi.hoisted(() => ({ getDailyLeaderAssignments: vi.fn() }));
 const noHolidays = vi.hoisted(() => []);
@@ -21,7 +22,7 @@ vi.mock('../components/EventModal', () => ({ EventModal: () => null }));
 vi.mock('../components/CompanyHolidayModal', () => ({ CompanyHolidayModal: () => null }));
 vi.mock('../components/UpcomingEvents', () => ({ default: ({ events }: any) => <div data-testid="upcoming">{events.map((e: any) => e.kind || 'leave').join(',')}</div> }));
 vi.mock('../components/CalendarGrid', () => ({ CalendarGrid: ({ events, onDateClick }: any) => <div><div data-testid="grid-events">{events.map((e: any) => e.kind || 'leave').join(',')}</div><button onClick={() => onDateClick(new Date('2026-10-15T10:00:00'))}>Open Thursday</button></div> }));
-afterEach(cleanup);
+afterEach(() => { cleanup(); calendarSession.currentDate = new Date('2026-10-15T10:00:00'); });
 
 it('loads leader events into the calendar and details without adding them to the leave sidebar', async () => {
   api.getDailyLeaderAssignments.mockResolvedValue({ success: true, data: [{ weekStart: '2026-10-12', date: '2026-10-15', employeeId: 2, employeeName: 'B' }] });
@@ -37,4 +38,15 @@ it('loads all six visible calendar rows including the next month', async () => {
   render(<CalendarEvents />);
   await screen.findByText('leave,daily-meeting');
   expect(api.getDailyLeaderAssignments).toHaveBeenCalledWith('2026-09-27', '2026-11-07', expect.any(AbortSignal));
+});
+
+it('reads the latest session month when returning to the calendar instead of a module-wide cached date', async () => {
+  api.getDailyLeaderAssignments.mockClear();
+  api.getDailyLeaderAssignments.mockResolvedValue({ success: true, data: [] });
+  const first = render(<CalendarEvents />);
+  await waitFor(() => expect(api.getDailyLeaderAssignments).toHaveBeenCalledWith('2026-09-27', '2026-11-07', expect.any(AbortSignal)));
+  first.unmount();
+  calendarSession.currentDate = new Date('2026-11-15T10:00:00');
+  render(<CalendarEvents />);
+  await waitFor(() => expect(api.getDailyLeaderAssignments).toHaveBeenCalledWith('2026-11-01', '2026-12-12', expect.any(AbortSignal)));
 });

@@ -28,21 +28,14 @@ import { toDailyLeaderEvents } from '@/lib/dailyRotation';
 
 export type ViewMode = 'month' | 'week' | 'day';
 
-const readInitialCalendarState = (() => {
-  let cached: { currentDate: Date; viewMode: ViewMode; calendarMode: CalendarMode } | null = null;
-
-  return () => {
-    if (cached) return cached;
-
-    const stored = getStoredCalendarState();
-    cached = {
-      currentDate: stored?.currentDate ?? moment().toDate(),
-      viewMode: (stored?.viewMode ?? 'month') as ViewMode,
-      calendarMode: (stored?.calendarMode ?? 'events') as CalendarMode,
-    };
-    return cached;
+const readInitialCalendarState = () => {
+  const stored = getStoredCalendarState();
+  return {
+    currentDate: stored?.currentDate ?? moment().toDate(),
+    viewMode: (stored?.viewMode ?? 'month') as ViewMode,
+    calendarMode: (stored?.calendarMode ?? 'events') as CalendarMode,
   };
-})();
+};
 
 const CalendarEvents = () => {
   const { isAdminAuthenticated } = useAuth();

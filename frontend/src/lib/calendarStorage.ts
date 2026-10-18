@@ -24,7 +24,7 @@ export const getStoredCalendarState = (): {
 } | null => {
   if (typeof window === 'undefined') return null;
 
-  const raw = localStorage.getItem(CALENDAR_STATE_STORAGE_KEY);
+  const raw = sessionStorage.getItem(CALENDAR_STATE_STORAGE_KEY);
   if (!raw) return null;
 
   try {
@@ -58,7 +58,7 @@ export const setStoredCalendarState = (
     viewMode,
     calendarMode,
   };
-  localStorage.setItem(CALENDAR_STATE_STORAGE_KEY, JSON.stringify(payload));
+  sessionStorage.setItem(CALENDAR_STATE_STORAGE_KEY, JSON.stringify(payload));
 };
 
 export const isViewingCurrentCalendarPeriod = (currentDate: Date, viewMode: CalendarViewMode) => {

@@ -244,7 +244,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
           <button
             type="button"
             aria-label={`ผู้นำ Daily Meeting: ${name}`}
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-500"
             onPointerMove={event => event.stopPropagation()}
             onFocus={event => event.stopPropagation()}
             onMouseDown={event => event.stopPropagation()}
@@ -252,7 +252,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
             onTouchEnd={event => event.stopPropagation()}
             onClick={event => event.stopPropagation()}
           >
-            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-violet-600 dark:bg-violet-400" />
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-violet-600 dark:bg-violet-400" />
           </button>
         </TooltipTrigger>
         <TooltipPortal>
@@ -1209,7 +1209,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             }}
                           >
                             <div className={`min-h-[20px] sm:min-h-[24px] text-xs font-medium mb-1 flex justify-between items-center ${isTodayDate && !isOtherMonth ? 'dark:text-white' : ''}`}>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 <span className={isTodayDate && !isOtherMonth ? "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full bg-blue-600 text-white shadow-sm -ml-0.5" : ""}>
                                   {moment(date).date()}{thaiHoliday ? '*' : ''}
                                 </span>
@@ -1420,7 +1420,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                 const agendaDayHeader = (
                   <div className="flex justify-between items-center mb-0 px-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-gray-200">
                         {formatDate(date)}{thaiHoliday ? '*' : ''}
                       </h3>
