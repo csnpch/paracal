@@ -12,7 +12,9 @@ WORKDIR /app/frontend
 # Lockfile from macOS lacks linux-musl native bindings — see https://github.com/npm/cli/issues/4828
 COPY frontend/package.json ./
 
-RUN npm install
+# The bundled npm 10 resolver crashes on circular optional peer sets.
+# npm/cli#8448 fixes the detached-node edgesOut crash; pin the build tool.
+RUN npm install --global npm@11.16.0 && npm install
 
 # Copy shared modules at the correct relative path (frontend imports ../../../shared/*)
 COPY shared /app/shared
