@@ -66,8 +66,8 @@ export class DailyRotationService {
   private today() { return moment().utcOffset('+07:00').format('YYYY-MM-DD'); }
 
   private async ensureConfig() {
-    return this.prisma.dailyRotationConfig.upsert({ where: { id: 1 }, update: {},
-      create: { id: 1, startWeek: weekOf(this.today()) } });
+    return this.prisma.dailyRotationConfig.upsert({ where: { id: 1 }, update: { enabled: true },
+      create: { id: 1, enabled: true, startWeek: weekOf(this.today()) } });
   }
 
   private async collect(tx: Prisma.TransactionClient, cfg: StoredConfig, end: string, persist: boolean) {
@@ -108,13 +108,19 @@ export class DailyRotationService {
     const employees = await this.prisma.employee.findMany({ orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
     const start = cfg.startWeek > this.today() ? cfg.startWeek : weekOf(this.today());
     const end = moment.utc(start).add(3, 'weeks').format('YYYY-MM-DD');
-    const preview = await this.prisma.$transaction(tx => this.collect(tx, cfg, end, false));
-    const nextWeekStart = moment.utc(weekOf(this.today())).add(1, 'week').format('YYYY-MM-DD');
+    const preview = await this.prisma.$transaction(tx => this.collect(tx, cfg, end, false), { timeout: 30000 });
+    const currentWeekStart = weekOf(this.today());
+    const nextWeekStart = moment.utc(currentWeekStart).add(1, 'week').format('YYYY-MM-DD');
     const pendingAnchor = cfg.leaderStartWeek && cfg.leaderStartEmployeeId !== null
       && employees.some(e => e.id === cfg.leaderStartEmployeeId)
       && !preview.some(a => a.weekStart >= cfg.leaderStartWeek! && a.weekStart < nextWeekStart)
       ? cfg.leaderStartEmployeeId : null;
-    return { enabled: cfg.enabled, notificationEnabled: cfg.notificationEnabled, notificationTime: cfg.notificationTime, startWeek: cfg.startWeek,
+    const pendingCurrentAnchor = cfg.leaderStartWeek && cfg.leaderStartEmployeeId !== null
+      && employees.some(e => e.id === cfg.leaderStartEmployeeId)
+      && !preview.some(a => a.weekStart >= cfg.leaderStartWeek! && a.weekStart < currentWeekStart)
+      ? cfg.leaderStartEmployeeId : null;
+    return { enabled: true, notificationEnabled: cfg.notificationEnabled, notificationTime: cfg.notificationTime, startWeek: cfg.startWeek,
+      currentWeekStart, currentLeaderEmployeeId: preview.find(a => a.weekStart >= currentWeekStart)?.employeeId ?? pendingCurrentAnchor,
       nextWeekStart, nextLeaderEmployeeId: preview.find(a => a.weekStart >= nextWeekStart)?.employeeId ?? pendingAnchor,
       employeeOrder: reconcileOrder(cfg.employeeOrder as number[], employees),
       employees: employees.map(e => ({ ...e, createdAt: e.createdAt.toISOString(), updatedAt: e.updatedAt.toISOString() })),
@@ -132,7 +138,11 @@ export class DailyRotationService {
       await tx.$queryRaw`SELECT id FROM daily_rotation_config WHERE id = 1 FOR UPDATE`;
       const cfg = (await tx.dailyRotationConfig.findUnique({ where: { id: 1 } }))!;
       const employees = await tx.employee.findMany();
-      if (updates.nextLeaderEmployeeId !== undefined && (!Number.isInteger(updates.nextLeaderEmployeeId) || !employees.some(e => e.id === updates.nextLeaderEmployeeId))) {
+      if (updates.currentLeaderEmployeeId !== undefined && updates.nextLeaderEmployeeId !== undefined) {
+        throw new DailyRotationValidationError('Choose either the current week or next week');
+      }
+      const selectedLeaderId = updates.currentLeaderEmployeeId ?? updates.nextLeaderEmployeeId;
+      if (selectedLeaderId !== undefined && (!Number.isInteger(selectedLeaderId) || !employees.some(e => e.id === selectedLeaderId))) {
         throw new DailyRotationValidationError('Selected leader must be a current employee');
       }
       if (updates.employeeOrder) {
@@ -140,26 +150,29 @@ export class DailyRotationService {
         if (ids.length !== employees.length || new Set(ids).size !== ids.length || ids.some(id => !employees.some(e => e.id === id))) throw new DailyRotationValidationError('Order must include each current employee exactly once');
       }
       if (updates.startWeek && updates.startWeek !== cfg.startWeek && await tx.dailyMeetingWeek.count()) throw new DailyRotationValidationError('Start week cannot change after rotation has started');
-      // Once started, preserve history even while the feature is OFF before
-      // replacing its anchor/order. Before first activation, consume no turn.
-      const previouslyStarted = await tx.dailyMeetingWeek.count() > 0;
-      if (cfg.enabled || previouslyStarted) await this.collect(tx, cfg, this.today(), true);
-      const { nextLeaderEmployeeId, ...otherUpdates } = updates;
-      const data: Prisma.DailyRotationConfigUpdateInput = { ...otherUpdates };
-      const hasHistory = await tx.dailyMeetingWeek.count() > 0;
-      if (nextLeaderEmployeeId !== undefined) {
-        const nextWeek = moment.utc(weekOf(this.today())).add(1, 'week').format('YYYY-MM-DD');
-        data.leaderStartWeek = nextWeek;
+      // Preserve all prior weeks before changing the cursor. Rotation is
+      // always active; only global/per-webhook notification switches stop sends.
+      await this.collect(tx, cfg, this.today(), true);
+      const { currentLeaderEmployeeId, nextLeaderEmployeeId, enabled: _legacyEnabled, ...otherUpdates } = updates;
+      const data: Prisma.DailyRotationConfigUpdateInput = { ...otherUpdates, enabled: true };
+      if (currentLeaderEmployeeId !== undefined) {
+        const currentWeek = weekOf(this.today());
+        data.leaderStartWeek = currentWeek;
+        data.leaderStartEmployeeId = currentLeaderEmployeeId;
+        if (cfg.startWeek > currentWeek) data.startWeek = currentWeek;
+        const snapshot = await tx.dailyMeetingWeek.findUnique({ where: { weekStart: currentWeek } });
+        // Explicit admin corrections replace only this week's identity. Keep
+        // its date and delivery claims: already queued/sent messages never repeat.
+        if (snapshot?.date) await tx.dailyMeetingWeek.update({ where: { weekStart: currentWeek }, data: {
+          employeeId: currentLeaderEmployeeId,
+          employeeName: employees.find(e => e.id === currentLeaderEmployeeId)!.name,
+        } });
+      } else if (nextLeaderEmployeeId !== undefined) {
+        data.leaderStartWeek = moment.utc(weekOf(this.today())).add(1, 'week').format('YYYY-MM-DD');
         data.leaderStartEmployeeId = nextLeaderEmployeeId;
-        // Before first activation the selected person starts next week;
-        // viewing configuration earlier must not consume a default turn.
-        if (!cfg.enabled && !hasHistory) data.startWeek = nextWeek;
-      } else if (updates.enabled && !cfg.enabled && !updates.startWeek && !hasHistory) {
-        data.startWeek = cfg.leaderStartWeek && cfg.leaderStartWeek >= weekOf(this.today())
-          ? cfg.leaderStartWeek : weekOf(this.today());
       }
       const updated = await tx.dailyRotationConfig.update({ where: { id: 1 }, data });
-      if (updated.enabled) await this.collect(tx, updated, this.today(), true);
+      await this.collect(tx, updated, this.today(), true);
     }, { timeout: 30000 });
     return this.getSettings();
   }
@@ -171,7 +184,6 @@ export class DailyRotationService {
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM daily_rotation_config WHERE id = 1 FOR UPDATE`;
       const cfg = (await tx.dailyRotationConfig.findUnique({ where: { id: 1 } }))!;
-      if (!cfg.enabled) return [];
       return (await this.collect(tx, cfg, end, true)).filter(a => a.date >= start && a.date <= end);
     }, { timeout: 30000 });
   }
@@ -183,7 +195,7 @@ export class DailyRotationService {
     const deliveries = await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM daily_rotation_config WHERE id = 1 FOR UPDATE`;
       const cfg = (await tx.dailyRotationConfig.findUnique({ where: { id: 1 } }))!;
-      if (!cfg.enabled || !cfg.notificationEnabled || cfg.notificationTime !== time.format('HH:mm')) return [];
+      if (!cfg.notificationEnabled || cfg.notificationTime !== time.format('HH:mm')) return [];
       const assignment = (await this.collect(tx, cfg, date, true)).find(a => a.date === date);
       if (!assignment) return [];
       const targets = await tx.cronjobConfig.findMany({ where: { dailyLeaderEnabled: true }, orderBy: { id: 'asc' } });

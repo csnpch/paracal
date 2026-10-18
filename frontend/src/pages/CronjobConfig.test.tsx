@@ -24,7 +24,7 @@ vi.mock('../components/Layout', () => ({ Layout: ({ children }: { children: Reac
 vi.mock('../contexts/ThemeContext', () => ({ useTheme: () => ({ theme: 'dark' }) }));
 vi.mock('../hooks/use-toast', () => ({ toast: vi.fn() }));
 
-const settings = { enabled: true, notificationEnabled: true, notificationTime: '09:00', startWeek: '2026-10-05', nextWeekStart: '2026-10-12', nextLeaderEmployeeId: 2, employeeOrder: [1, 2, 3], employees: [1, 2, 3].map((id, i) => ({ id, name: ['A', 'B', 'C'][i], createdAt: `2026-01-0${id}`, updatedAt: `2026-01-0${id}` })), preview: [] };
+const settings = { enabled: true, notificationEnabled: true, notificationTime: '09:00', startWeek: '2026-10-05', currentWeekStart: '2026-10-05', currentLeaderEmployeeId: 1, nextWeekStart: '2026-10-12', nextLeaderEmployeeId: 2, employeeOrder: [1, 2, 3], employees: [1, 2, 3].map((id, i) => ({ id, name: ['A', 'B', 'C'][i], createdAt: `2026-01-0${id}`, updatedAt: `2026-01-0${id}` })), preview: [] };
 const config = { id: 1, name: 'Team', enabled: true, daily_leader_enabled: false, schedule_time: '09:00', notification_type: 'daily', notification_days: 0, webhook_url: 'https://example.test/hook', created_at: '2026-01-01', updated_at: '2026-01-01' };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,39 +60,68 @@ describe('daily rotation configuration user flows', () => {
     await user.click(screen.getByRole('button', { name: 'บันทึกลำดับ' }));
     await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenCalledWith({ employeeOrder: [3, 1, 2] }));
   });
-  it('selects the next leader without reordering the team and refreshes the weekly preview', async () => {
-    api.updateDailyRotationSettings.mockResolvedValueOnce({ success: true, data: { ...settings, nextLeaderEmployeeId: 3, preview: [
-      { weekStart: '2026-10-12', date: '2026-10-12', employeeId: 3, employeeName: 'C' },
-      { weekStart: '2026-10-19', date: '2026-10-19', employeeId: 1, employeeName: 'A' },
+  it('selects this week’s leader at the top without reordering the team and refreshes the weekly preview', async () => {
+    api.updateDailyRotationSettings.mockResolvedValueOnce({ success: true, data: { ...settings, currentLeaderEmployeeId: 3, preview: [
+      { weekStart: '2026-10-05', date: '2026-10-05', employeeId: 3, employeeName: 'C' },
+      { weekStart: '2026-10-12', date: '2026-10-12', employeeId: 1, employeeName: 'A' },
     ] } });
     const user = userEvent.setup(); render(<CronjobConfig />);
     await user.click(await screen.findByRole('tab', { name: 'Daily Rotation' }));
-    const selector = screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์หน้า' });
+    const selector = screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์นี้' });
     await user.click(selector);
     await user.click(screen.getByRole('option', { name: 'C' }));
-    await user.click(screen.getByRole('button', { name: 'บันทึกผู้นำสัปดาห์หน้า' }));
-    await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenCalledWith({ nextLeaderEmployeeId: 3 }));
+    await user.click(screen.getByRole('button', { name: 'บันทึกผู้นำสัปดาห์นี้' }));
+    await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenCalledWith({ currentLeaderEmployeeId: 3 }));
     await waitFor(() => expect(selector.textContent).toContain('C'));
     const preview = within(screen.getByRole('region', { name: 'ผู้นำรายสัปดาห์' }));
-    expect(preview.getByText('2026-10-12 • event วันที่ 2026-10-12')).toBeTruthy();
+    expect(preview.getByText('2026-10-05 • event วันที่ 2026-10-05')).toBeTruthy();
     expect(preview.getByText('C')).toBeTruthy();
     expect(preview.getByText('A')).toBeTruthy();
     expect(screen.getAllByRole('listitem').slice(0, 3).map(item => item.textContent)).toEqual(['1A', '2B', '3C']);
   });
-  it('disables next-leader selection when the team is empty', async () => {
-    api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, employees: [], employeeOrder: [], nextLeaderEmployeeId: null } });
+  it('disables current-leader selection when the team is empty', async () => {
+    api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, employees: [], employeeOrder: [], currentLeaderEmployeeId: null } });
     const user = userEvent.setup(); render(<CronjobConfig />);
     await user.click(await screen.findByRole('tab', { name: 'Daily Rotation' }));
-    const selector = screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์หน้า' });
+    const selector = screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์นี้' });
     expect(selector.hasAttribute('disabled')).toBe(true);
-    expect(screen.getByRole('button', { name: 'บันทึกผู้นำสัปดาห์หน้า' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'บันทึกผู้นำสัปดาห์นี้' }).hasAttribute('disabled')).toBe(true);
   });
-  it('saves one common leader time for all webhooks', async () => {
+  it('saves one common leader time from Daily Rotation for all webhooks', async () => {
     const user = userEvent.setup(); render(<CronjobConfig />);
+    await user.click(await screen.findByRole('tab', { name: 'Daily Rotation' }));
     const input = await screen.findByLabelText('เวลาแจ้งเตือนผู้นำ daily meeting');
     fireEvent.change(input, { target: { value: '10:00' } });
     await user.click(screen.getByRole('button', { name: 'บันทึกการแจ้งเตือนผู้นำ' }));
     await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenCalledWith({ notificationEnabled: true, notificationTime: '10:00' }));
+  });
+  it('puts current selection first and keeps the single global leader switch/time only on Daily Rotation', async () => {
+    const user = userEvent.setup(); render(<CronjobConfig />);
+    await screen.findByRole('article', { name: 'Team' });
+    expect(screen.queryByLabelText('เปิดการแจ้งเตือนผู้นำ')).toBeNull();
+    expect(screen.queryByLabelText('เวลาแจ้งเตือนผู้นำ daily meeting')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'การแจ้งเตือนผู้นำ daily meeting' })).toBeNull();
+    await user.click(screen.getByRole('tab', { name: 'Daily Rotation' }));
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
+    expect(screen.getByRole('switch', { name: 'เปิดการแจ้งเตือนผู้นำ' })).toBeTruthy();
+    expect(screen.queryByRole('switch', { name: 'เปิดใช้งาน Daily Rotation' })).toBeNull();
+    const current = screen.getByRole('region', { name: 'ผู้นำสัปดาห์นี้' });
+    expect(within(current).getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์นี้' }).textContent).toContain('A');
+    expect(current.compareDocumentPosition(screen.getAllByRole('listitem')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('ผู้นำสัปดาห์หน้า')).toBeNull();
+  });
+  it('allows correcting a removed current leader using an active employee', async () => {
+    api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, currentLeaderEmployeeId: 4, preview: [
+      { weekStart: '2026-10-05', date: '2026-10-05', employeeId: 4, employeeName: 'Removed User' },
+    ] } });
+    const user = userEvent.setup(); render(<CronjobConfig />);
+    await user.click(await screen.findByRole('tab', { name: 'Daily Rotation' }));
+    const selector = screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์นี้' });
+    expect(selector.textContent).toContain('Removed User');
+    expect(screen.getByRole('button', { name: 'บันทึกผู้นำสัปดาห์นี้' }).hasAttribute('disabled')).toBe(true);
+    await user.click(selector); await user.click(screen.getByRole('option', { name: 'C' }));
+    await user.click(screen.getByRole('button', { name: 'บันทึกผู้นำสัปดาห์นี้' }));
+    await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenCalledWith({ currentLeaderEmployeeId: 3 }));
   });
   it('updates event and leader switches independently for a webhook', async () => {
     const user = userEvent.setup(); render(<CronjobConfig />);
@@ -111,12 +140,12 @@ describe('daily rotation configuration user flows', () => {
     expect(dialog.queryByLabelText('เวลาแจ้งเตือนผู้นำ daily meeting')).toBeNull();
     expect(dialog.queryByText('การแจ้งเตือนผู้นำ daily meeting')).toBeNull();
   });
-  it('turning the feature off preserves selected webhook subscriptions and shows their paused state', async () => {
-    api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, enabled: false } });
+  it('turning global leader notifications off preserves selected webhook subscriptions and shows their paused state', async () => {
+    api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, notificationEnabled: false } });
     api.getCronjobConfigs.mockResolvedValue({ success: true, data: [{ ...config, daily_leader_enabled: true }] });
     render(<CronjobConfig />);
     const card = within(await screen.findByRole('article', { name: 'Team' }));
-    expect(card.getByText('พักตามฟีเจอร์')).toBeTruthy();
+    expect(card.getByText('พักการแจ้งเตือน')).toBeTruthy();
     expect(card.getByRole('switch', { name: 'การแจ้งเตือนผู้นำ daily meeting' }).getAttribute('aria-checked')).toBe('true');
   });
 });

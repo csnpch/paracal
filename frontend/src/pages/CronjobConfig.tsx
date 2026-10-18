@@ -52,11 +52,6 @@ export default function CronjobConfig() {
   const [rotation, setRotation] = useState<DailyRotationSettings | null>(null);
   const [savingRotation, setSavingRotation] = useState(false);
   const [savingConfig, setSavingConfig] = useState<number | null>(null);
-  const [notificationTime, setNotificationTime] = useState('09:00');
-  const [notificationEnabled, setNotificationEnabled] = useState(false);
-  useEffect(() => {
-    if (rotation) { setNotificationTime(rotation.notificationTime); setNotificationEnabled(rotation.notificationEnabled); }
-  }, [rotation]);
   const saveRotation = async (updates: DailyRotationUpdate) => {
     setSavingRotation(true);
     try {
@@ -326,7 +321,7 @@ export default function CronjobConfig() {
     const status = statuses.find(s => s.id === config.id);
 
     // If no status found from backend, fall back to config.enabled
-    const isEnabled = config.enabled || (config.daily_leader_enabled && rotation?.enabled && rotation?.notificationEnabled);
+    const isEnabled = config.enabled || (config.daily_leader_enabled && rotation?.notificationEnabled);
     const isRunning = status?.running ?? false;
 
     if (isEnabled && isRunning) {
@@ -517,25 +512,10 @@ export default function CronjobConfig() {
           </TabsContent>
           <TabsContent value="notifications" className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-300">เลือกเรื่องที่แจ้งเตือนแยกกันในแต่ละ webhook</p>
-            {rotation && <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600">
-              <CardHeader><CardTitle className="text-lg">การแจ้งเตือนผู้นำ daily meeting</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2"><Switch id="leader-notification-global" checked={notificationEnabled} disabled={savingRotation} onCheckedChange={setNotificationEnabled} />
-                    <Label htmlFor="leader-notification-global">เปิดการแจ้งเตือนผู้นำ</Label></div>
-                  <div className="flex items-center gap-3"><Label htmlFor="leader-notification-time">เวลาแจ้งเตือนผู้นำ daily meeting</Label>
-                    <Input id="leader-notification-time" type="time" value={notificationTime} disabled={savingRotation} className="w-32" onChange={e => setNotificationTime(e.target.value)} /></div>
-                  <Button disabled={savingRotation || !notificationTime} onClick={() => void saveRotation({ notificationEnabled, notificationTime })}>บันทึกการแจ้งเตือนผู้นำ</Button>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-300">ใช้เวลาเดียวกันกับทุก webhook ที่เปิดรับ • แจ้งครั้งเดียวในวันทำงานแรกของสัปดาห์</p>
-                <p className="text-sm text-gray-500 dark:text-gray-300">หากวันจันทร์หยุดจะเลื่อนไปวันทำงานแรก ถ้าหยุดครบสัปดาห์จะไม่ใช้คิว</p>
-                {!rotation.enabled && <p className="text-sm text-amber-600 dark:text-amber-300">ฟีเจอร์ Daily Rotation ปิดอยู่ การแจ้งเตือนผู้นำพักไว้</p>}
-              </CardContent>
-            </Card>}
             <div className="grid gap-4">
               {configs.length === 0 && <Card><CardContent className="py-8 text-center">No cronjob configurations found. Create your first one!</CardContent></Card>}
               {[...configs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(config => {
-                const leaderActive = rotation?.enabled && rotation?.notificationEnabled;
+                const leaderActive = rotation?.notificationEnabled;
                 const next = rotation?.preview.find(a => a.date >= new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }));
                 let maskedUrl = '…';
                 try { maskedUrl = new URL(config.webhook_url).origin + '/…'; } catch { /* invalid legacy URL is editable in its existing form */ }
@@ -575,7 +555,7 @@ export default function CronjobConfig() {
                         {config.daily_leader_enabled && leaderActive && next && <p className="text-sm text-gray-500 dark:text-gray-300 mt-1">ครั้งถัดไป: {next.date} • {next.employeeName}</p>}
                       </div>
                       <Switch id={`leader-${config.id}`} className="data-[state=checked]:bg-green-500" checked={!!config.daily_leader_enabled} disabled={savingConfig !== null || !rotation} onCheckedChange={daily_leader_enabled => void toggleNotification(config, { daily_leader_enabled })} />
-                      {config.daily_leader_enabled && !leaderActive ? <Badge variant="outline" className="text-amber-600 dark:text-amber-300">พักตามฟีเจอร์</Badge> : <span className="text-sm hidden sm:block">{config.daily_leader_enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>}
+                      {config.daily_leader_enabled && !leaderActive ? <Badge variant="outline" className="text-amber-600 dark:text-amber-300">พักการแจ้งเตือน</Badge> : <span className="text-sm hidden sm:block">{config.daily_leader_enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>}
                     </div>
                   </CardContent>
                 </Card>;

@@ -130,11 +130,14 @@ export interface DailyLeaderAssignment {
 }
 
 export interface DailyRotationSettings {
+  /** @deprecated Rotation is always active; retained for older clients. */
   enabled: boolean;
   notificationEnabled: boolean;
   notificationTime: string;
   startWeek: string;
   employeeOrder: number[];
+  currentWeekStart: string;
+  currentLeaderEmployeeId: number | null;
   nextWeekStart: string;
   nextLeaderEmployeeId: number | null;
   employees: Employee[];
@@ -142,7 +145,7 @@ export interface DailyRotationSettings {
 }
 
 export type DailyRotationUpdate = Partial<Pick<DailyRotationSettings,
-  'enabled' | 'notificationEnabled' | 'notificationTime' | 'startWeek' | 'employeeOrder'>> & { nextLeaderEmployeeId?: number };
+  'enabled' | 'notificationEnabled' | 'notificationTime' | 'startWeek' | 'employeeOrder'>> & { currentLeaderEmployeeId?: number; nextLeaderEmployeeId?: number };
 
 // ─── API Response ────────────────────────────────────────────
 

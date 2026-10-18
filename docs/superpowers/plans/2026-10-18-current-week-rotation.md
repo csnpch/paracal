@@ -34,9 +34,9 @@
 
 **Interfaces:** Existing getStoredCalendarState/setStoredCalendarState signatures unchanged. Browser sessionStorage owns the payload; new session returns null for the page's today fallback.
 
-- [ ] Write tests for ignoring old localStorage dates, same-session roundtrip, session clear/new-session reset, invalid data fallback; run RED.
-- [ ] Use sessionStorage and remove the stale module-wide initial-state cache; make dot 6px inside a 12px trigger with a 2px day-header gap and a thin keyboard-focus ring.
-- [ ] Run storage and calendar tests, typecheck; inspect the compact dot in browser and commit.
+- [x] Write tests for ignoring old localStorage dates, same-session roundtrip, session clear/new-session reset, invalid data fallback; run RED.
+- [x] Use sessionStorage and remove the stale module-wide initial-state cache; make dot 6px inside a 12px trigger with a 2px day-header gap and a thin keyboard-focus ring.
+- [x] Run storage and calendar tests, typecheck; inspect the compact dot in browser and commit.
 
 ### Task 2: Always-on current-week rotation configuration
 
@@ -44,10 +44,10 @@
 
 **Interfaces:** GET adds currentWeekStart:string and currentLeaderEmployeeId:number|null. PUT accepts currentLeaderEmployeeId?:number (exclusive with legacy nextLeaderEmployeeId). enabled remains a deprecated always-true response/ignored legacy update. Existing next-week API remains compatible. No schema migration.
 
-- [ ] Add RED integration tests for current selection, repeated correction/past stability, post-send correction without duplicates, closed-week carry, invalid IDs/conflicting inputs, always-active legacy configs.
-- [ ] Update obsolete feature-OFF tests to always-active expectations; retain global/per-webhook notification suppression and legacy next-week tests.
-- [ ] Add RED UI tests: top current-week selector, single global notification switch/time on Daily Rotation, no enable-rotation switch, no global card on Notifications, per-webhook switches retained.
-- [ ] Implement always-active settings and current anchor/snapshot correction atomically; expose current fields and validated admin input.
-- [ ] Move global notification inputs into the panel header, move current-week selector to first content section, retain queue and preview below; remove old global Notifications card.
-- [ ] Run complete frontend suite/typecheck/build, backend rotation/merge suites/compile and standard backend tests; report known legacy failures separately.
-- [ ] Verify actual components with isolated browser fixtures/screenshots, obtain one full-diff review, fix findings via RED/GREEN, commit and publish dev/main; verify production builds including npm pin.
+- [x] Add RED integration tests for current selection, repeated correction/past stability, post-send correction without duplicates, closed-week carry, invalid IDs/conflicting inputs, always-active legacy configs.
+- [x] Update obsolete feature-OFF tests to always-active expectations; retain global/per-webhook notification suppression and legacy next-week tests.
+- [x] Add RED UI tests: top current-week selector, single global notification switch/time on Daily Rotation, no enable-rotation switch, no global card on Notifications, per-webhook switches retained.
+- [x] Implement always-active settings and current anchor/snapshot correction atomically; expose current fields and validated admin input.
+- [x] Move global notification inputs into the panel header, move current-week selector to first content section, retain queue and preview below; remove old global Notifications card.
+- [x] Run complete frontend suite/typecheck/build, backend rotation/merge suites/compile and standard backend tests; report known legacy failures separately.
+- [x] Verify actual components with isolated browser fixtures/screenshots, obtain one full-diff review, fix findings via RED/GREEN, commit and publish dev/main; verify production builds including npm pin. (Implementation, browser verification and review complete; publication is the final pending action.)

@@ -49,6 +49,66 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
   } });
   const monday = new Date('2026-10-12T02:00:00Z');
 
+  test('rotation is always active for legacy disabled configs and ignores the removed enable switch', async () => {
+    await fixture.prisma.dailyRotationConfig.create({ data: { id: 1, enabled: false, startWeek: '2026-10-05' } });
+    expect(await service.getSettings()).toMatchObject({ enabled: true, notificationEnabled: false, currentWeekStart: '2026-10-05', currentLeaderEmployeeId: 1 });
+    expect(await service.getAssignments('2026-10-05', '2026-10-09')).toMatchObject([{ employeeId: 1 }]);
+    expect(await service.updateSettings({ enabled: false })).toMatchObject({ enabled: true });
+  });
+  test('correcting this week preserves the previous week and resumes after the selected leader', async () => {
+    await configure(); moment.now = () => monday.getTime();
+    expect(await service.updateSettings({ currentLeaderEmployeeId: 3 })).toMatchObject({ currentWeekStart: '2026-10-12', currentLeaderEmployeeId: 3, employeeOrder: [1, 2, 3] });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 2]);
+  });
+  test('repeated current-week corrections preserve history when the next week arrives', async () => {
+    await configure(); moment.now = () => monday.getTime();
+    await service.updateSettings({ currentLeaderEmployeeId: 3 });
+    await service.updateSettings({ currentLeaderEmployeeId: 2 });
+    moment.now = () => Date.parse('2026-10-19T02:00:00Z');
+    await service.updateSettings({ currentLeaderEmployeeId: 1 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 1, 2]);
+  });
+  test('correcting an already-notified current leader updates the calendar without sending again', async () => {
+    await configure(); await subscribe(); moment.now = () => monday.getTime();
+    await service.dispatchDue(monday);
+    expect(payloads).toHaveLength(1);
+    expect(JSON.stringify(payloads[0])).toContain('🎙️ B จะนำ Daily Meeting ในสัปดาห์นี้');
+    await service.updateSettings({ currentLeaderEmployeeId: 3 });
+    expect((await service.getAssignments('2026-10-12', '2026-10-23')).map((a: any) => a.employeeId)).toEqual([3, 1]);
+    await service.dispatchDue(monday);
+    expect(payloads).toHaveLength(1);
+    expect(await fixture.prisma.dailyLeaderDelivery.findMany()).toMatchObject([{ status: 'sent' }]);
+  });
+  test('a selected current leader carries through a fully closed week without consuming a turn', async () => {
+    await configure(); await subscribe(); moment.now = () => monday.getTime();
+    await fixture.prisma.companyHoliday.createMany({ data: ['12', '13', '14', '15', '16'].map(d => ({ name: 'Closed', date: `2026-10-${d}` })) });
+    expect(await service.updateSettings({ currentLeaderEmployeeId: 3 })).toMatchObject({ currentLeaderEmployeeId: 3 });
+    expect((await service.getAssignments('2026-10-12', '2026-10-30')).map((a: any) => [a.weekStart, a.employeeId])).toEqual([['2026-10-19', 3], ['2026-10-26', 1]]);
+    await service.dispatchDue(monday);
+    expect(payloads).toHaveLength(0);
+  });
+  test('current-week selection works immediately without a rotation activation step', async () => {
+    expect(await service.updateSettings({ currentLeaderEmployeeId: 2 })).toMatchObject({ enabled: true, currentLeaderEmployeeId: 2 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-16')).map((a: any) => a.employeeId)).toEqual([2, 3]);
+  });
+  test('rejects nonexistent or conflicting current-week selections', async () => {
+    for (const currentLeaderEmployeeId of [0, -1, 1.5, 999]) await expect(service.updateSettings({ currentLeaderEmployeeId })).rejects.toThrow('Selected leader must be a current employee');
+    await expect(service.updateSettings({ currentLeaderEmployeeId: 2, nextLeaderEmployeeId: 3 })).rejects.toThrow('Choose either the current week or next week');
+  });
+  test('admin API accepts a current-week correction and returns its effective week', async () => {
+    await configure();
+    const routes = routeModule.createDailyRotationRoutes(service);
+    const response = await routes.handle(new Request('http://localhost/daily-rotation', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${createAdminSession()}` }, body: JSON.stringify({ currentLeaderEmployeeId: 3 }) }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toMatchObject({ currentWeekStart: '2026-10-05', currentLeaderEmployeeId: 3 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-16')).map((a: any) => a.employeeId)).toEqual([3, 1]);
+  });
+  test('allows replacing a current leader who was removed from the employee list', async () => {
+    await configure(); await service.updateSettings({ currentLeaderEmployeeId: 3 });
+    await fixture.prisma.employee.delete({ where: { id: 3 } });
+    expect(await service.updateSettings({ currentLeaderEmployeeId: 1 })).toMatchObject({ currentLeaderEmployeeId: 1 });
+    expect((await service.getAssignments('2026-10-05', '2026-10-16')).map((a: any) => a.employeeId)).toEqual([1, 2]);
+  });
   test('selects the next leader independently of queue order and preserves the current week', async () => {
     await configure();
     await service.updateSettings({ nextLeaderEmployeeId: 3 });
@@ -66,7 +126,7 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 1, 2]);
     expect((await service.getSettings()).nextWeekStart).toBe('2026-10-19');
   });
-  test('changing next leader while OFF after activation preserves current and historical assignments on re-enable', async () => {
+  test('legacy disable inputs do not interrupt current or historical rotation when changing the next leader', async () => {
     await configure();
     await service.updateSettings({ nextLeaderEmployeeId: 3 });
     await service.updateSettings({ enabled: false });
@@ -74,14 +134,14 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect((await service.getSettings()).preview[0]).toMatchObject({ weekStart: '2026-10-19', employeeId: 1 });
     await service.updateSettings({ nextLeaderEmployeeId: 2 });
     expect((await service.getSettings()).preview[0]).toMatchObject({ weekStart: '2026-10-19', employeeId: 1 });
-    expect(await service.getAssignments('2026-10-05', '2026-11-06')).toEqual([]);
+    expect((await service.getAssignments('2026-10-05', '2026-11-06')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 2, 3]);
     await service.updateSettings({ enabled: true });
     expect((await service.getAssignments('2026-10-05', '2026-11-06')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 2, 3]);
   });
-  test('first activation can start next week with a selected person instead of the first member', async () => {
+  test('legacy next-week selection changes next week while current rotation remains active', async () => {
     await service.updateSettings({ nextLeaderEmployeeId: 3 });
     await service.updateSettings({ enabled: true });
-    expect(await service.getAssignments('2026-10-05', '2026-10-09')).toEqual([]);
+    expect(await service.getAssignments('2026-10-05', '2026-10-09')).toMatchObject([{ employeeId: 1 }]);
     expect((await service.getAssignments('2026-10-12', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([3, 1, 2]);
   });
   test('a chosen next leader carries over an entirely closed week and moves to Thursday for partial closure', async () => {
@@ -125,15 +185,15 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect(payloads).toHaveLength(1);
     expect(payloads[0].attachments[0].content.body[1].text).toBe('🎙️ C จะนำ Daily Meeting ในสัปดาห์นี้');
   });
-  test('starts disabled with the oldest employees first', async () => {
-    expect(await service.getSettings()).toMatchObject({ enabled: false, notificationEnabled: false, notificationTime: '09:00', employeeOrder: [1, 2, 3] });
-    expect(await service.getAssignments('2026-10-05', '2026-10-30')).toEqual([]);
+  test('starts active with the oldest employees first and notifications off', async () => {
+    expect(await service.getSettings()).toMatchObject({ enabled: true, notificationEnabled: false, notificationTime: '09:00', employeeOrder: [1, 2, 3] });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 3, 1]);
   });
-  test('first activation starts with the oldest employee even if settings were opened weeks earlier', async () => {
+  test('rotation continues from its configured start even if settings were opened weeks earlier', async () => {
     await service.getSettings();
     moment.now = () => Date.parse('2026-10-19T02:00:00Z');
     await service.updateSettings({ enabled: true });
-    expect(await service.getAssignments('2026-10-19', '2026-10-23')).toMatchObject([{ employeeId: 1 }]);
+    expect(await service.getAssignments('2026-10-19', '2026-10-23')).toMatchObject([{ employeeId: 3 }]);
   });
   test('saves manual order, appends a new employee and removes a deleted employee', async () => {
     await service.updateSettings({ employeeOrder: [3, 1, 2] });
@@ -170,9 +230,9 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     await fixture.prisma.companyHoliday.deleteMany();
     expect((await service.getAssignments('2026-10-05', '2026-10-23')).map((x: any) => x.employeeId)).toEqual([1, 2]);
   });
-  test('feature OFF hides calendar events and preserves settings for re-enable', async () => {
+  test('legacy feature-OFF updates preserve active calendar rotation and notification settings', async () => {
     await configure(); await service.updateSettings({ enabled: false });
-    expect(await service.getAssignments('2026-10-05', '2026-10-30')).toEqual([]);
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 3, 1]);
     expect(await service.getSettings()).toMatchObject({ notificationEnabled: true, employeeOrder: [1, 2, 3] });
     await service.updateSettings({ enabled: true });
     expect(await service.getAssignments('2026-10-12', '2026-10-16')).toMatchObject([{ date: '2026-10-12', employeeId: 2 }]);
@@ -214,10 +274,9 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect(payloads).toHaveLength(1);
     expect(await service.getAssignments('2026-10-19', '2026-10-23')).toMatchObject([{ employeeId: 2 }]);
   });
-  test('feature, global notification and per-webhook subscription switches each suppress leader sends', async () => {
+  test('global notification and per-webhook subscription switches suppress sends without hiding rotation', async () => {
     const cfg = await subscribe(); await configure();
-    await service.updateSettings({ enabled: false }); await service.dispatchDue(monday);
-    await service.updateSettings({ enabled: true, notificationEnabled: false }); await service.dispatchDue(monday);
+    await service.updateSettings({ notificationEnabled: false }); await service.dispatchDue(monday);
     await service.updateSettings({ notificationEnabled: true });
     await fixture.prisma.cronjobConfig.update({ where: { id: cfg.id }, data: { dailyLeaderEnabled: false } });
     await service.dispatchDue(monday);
@@ -379,7 +438,7 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     expect(invalid.status).toBe(400);
     const disabled = await routes.handle(new Request('http://localhost/daily-rotation', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${createAdminSession()}` }, body: JSON.stringify({ enabled: false }) }));
     expect(disabled.status).toBe(200);
-    expect((await disabled.json()).data.enabled).toBe(false);
+    expect((await disabled.json()).data.enabled).toBe(true);
   });
   test('missing database schema is a server error and does not expose Prisma internals', async () => {
     await fixture.prisma.$executeRawUnsafe('ALTER TABLE daily_rotation_config RENAME TO daily_rotation_config_unavailable');
