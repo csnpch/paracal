@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Portal as TooltipPortal } from '@radix-ui/react-tooltip';
 import { Calendar, ChevronLeft, ChevronRight, Eye, EyeOff, Clock3, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateEventPopover } from '@/components/CreateEventPopover';
@@ -232,6 +233,35 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
       // Finally by employee ID for consistency
       return a.employeeId - b.employeeId;
     });
+  };
+
+  const renderDailyLeaderDot = (leader: Event | undefined) => {
+    if (!leader || worklogMode) return null;
+    const name = leader.employeeName || getEmployeeName(leader.employeeId);
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={`ผู้นำ Daily Meeting: ${name}`}
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            onPointerMove={event => event.stopPropagation()}
+            onFocus={event => event.stopPropagation()}
+            onMouseDown={event => event.stopPropagation()}
+            onTouchStart={event => event.stopPropagation()}
+            onTouchEnd={event => event.stopPropagation()}
+            onClick={event => event.stopPropagation()}
+          >
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-violet-600 dark:bg-violet-400" />
+          </button>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent side="top" className="max-w-[280px] z-[100] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+            🎙️ {name} จะนำ Daily Meeting ในสัปดาห์นี้
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    );
   };
 
   const getWorklogsForDate = (date: Date) => {
@@ -613,8 +643,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     const prevDate = currentDate.clone().subtract(1, 'day');
     const nextDate = currentDate.clone().add(1, 'day');
 
-    const prevEvents = getEventsForDate(prevDate.toDate());
-    const nextEvents = getEventsForDate(nextDate.toDate());
+    const prevEvents = getEventsForDate(prevDate.toDate()).filter(event => event.kind !== 'daily-meeting');
+    const nextEvents = getEventsForDate(nextDate.toDate()).filter(event => event.kind !== 'daily-meeting');
 
     const hasPrevious = prevEvents.some(e =>
       e.employeeId === event.employeeId &&
@@ -710,7 +740,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     const visibleEvents: Event[] = [];
     for (const date of allVisibleDays) {
       for (const e of getEventsForDate(date)) {
-        if (!seen.has(e.id)) {
+        if (e.kind !== 'daily-meeting' && !seen.has(e.id)) {
           seen.add(e.id);
           visibleEvents.push(e);
         }
@@ -1073,7 +1103,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   return (
                     <div key={weekIndex} className={`grid ${gridColsClass} gap-0.5 sm:gap-1 md:flex-1`}>
                       {visibleDaysInWeek.map((date, index) => {
-                        const dayEvents = getEventsForDate(date);
+                        const dayItems = getEventsForDate(date);
+                        const dayEvents = dayItems.filter(event => event.kind !== 'daily-meeting');
+                        const dailyLeader = dayItems.find(event => event.kind === 'daily-meeting');
                         const dayWorklogs = getWorklogsForDate(date);
                         const isOtherMonth = !isCurrentMonth(date);
                         const isTodayDate = isToday(date);
@@ -1181,6 +1213,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                 <span className={isTodayDate && !isOtherMonth ? "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full bg-blue-600 text-white shadow-sm -ml-0.5" : ""}>
                                   {moment(date).date()}{thaiHoliday ? '*' : ''}
                                 </span>
+                                {renderDailyLeaderDot(dailyLeader)}
                                 {isTodayDate && !isOtherMonth && (
                                   <span className="hidden xs:inline-block text-[10px] sm:text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/50 px-1.5 py-0.5 rounded-full ml-0.5">วันนี้</span>
                                 )}
@@ -1363,7 +1396,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 const d = moment(date).day();
                 return d !== 0 && d !== 6;
               }) : days).map((date, dayIndex) => {
-                const dayEvents = getEventsForDate(date);
+                const dayItems = getEventsForDate(date);
+                const dayEvents = dayItems.filter(event => event.kind !== 'daily-meeting');
+                const dailyLeader = dayItems.find(event => event.kind === 'daily-meeting');
                 const dayWorklogs = getWorklogsForDate(date);
                 const thaiHoliday = isHoliday(date);
                 const compHoliday = isCompanyHoliday(date);
@@ -1389,6 +1424,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-gray-200">
                         {formatDate(date)}{thaiHoliday ? '*' : ''}
                       </h3>
+                      {renderDailyLeaderDot(dailyLeader)}
                       {dayBadge}
                     </div>
 
