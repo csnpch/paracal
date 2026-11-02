@@ -217,7 +217,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="px-4 py-3"
                       >
                         <Settings className="w-4 h-4 mr-2" />
-                        ตั้งค่า Cronjob
+                        ตั้งค่า Cronjob และผู้นำ Daily Meeting
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => navigate('/admin/logs')}
