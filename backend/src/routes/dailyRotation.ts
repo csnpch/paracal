@@ -35,6 +35,7 @@ export function createDailyRotationRoutes(service = new DailyRotationService()) 
     }, { body: t.Object({
       enabled: t.Optional(t.Boolean()), notificationEnabled: t.Optional(t.Boolean()),
       notificationTime: t.Optional(t.String()), startWeek: t.Optional(t.String()),
+      skippedEmployeeIds: t.Optional(t.Array(t.Integer({ minimum: 1 }))),
       employeeOrder: t.Optional(t.Array(t.Integer({ minimum: 1 }))),
       currentLeaderEmployeeId: t.Optional(t.Integer({ minimum: 1 })),
       nextLeaderEmployeeId: t.Optional(t.Integer({ minimum: 1 })),

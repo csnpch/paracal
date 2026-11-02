@@ -68,6 +68,7 @@ model DailyRotationConfig {
   notificationTime    String  @default("09:00") @map("notification_time")
   startWeek           String  @map("start_week")
   employeeOrder       Json    @default("[]") @map("employee_order")
+  skippedEmployeeIds  Json    @default("[]") @map("skipped_employee_ids")
   leaderStartWeek     String? @map("leader_start_week")
   leaderStartEmployeeId Int?   @map("leader_start_employee_id")
 

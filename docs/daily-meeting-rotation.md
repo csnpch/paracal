@@ -3,6 +3,7 @@
 Configure everything on **Cronjob Configuration**:
 
 - **ผู้นำสัปดาห์นี้:** the first card on Daily Rotation selects the actual leader of the current ISO week. Saving corrects only the current week and resumes the saved circular order after that person; past weeks stay unchanged. Repeated corrections and replacing a deleted employee are supported. A fully closed week carries the choice to the next working week.
+- **ข้าม / กลับเข้ารอบ:** each queue row can exclude or restore a person without removing their user, leave records or order position. Skips persist and apply to unclaimed current/future weeks; historical and claimed current snapshots remain unchanged. No new notification is sent for a skipped leader. An all-skipped queue has no future assignments. New users participate by default.
 - **Daily Rotation:** rotation always runs and has no feature-enable switch. Drag employees or use the arrow buttons to save their order. Initial order follows `created_at`, with ID as a tie-breaker; new employees append automatically. The header contains the global leader-notification switch and common time.
 - **Notifications:** contains webhook items only, with independent event and leader-subscription switches. Multiple subscribed webhooks are supported; identical URLs receive one leader message per week. Global notification off pauses sends while the calendar keeps showing the rotation.
 
@@ -44,7 +45,7 @@ bunx tsc --noEmit -p tsconfig.app.json
 bun run build
 ```
 
-Latest rotation verification passed 52 tests and backend compilation; the existing merge suite passed 158 tests. The 7 migration lifecycle tests passed during the earlier migration rollout; this change needs no schema migration. Those lifecycle tests exercise real CLI commands against isolated PostgreSQL fixtures: empty database builds, legacy adoption, already-applied SQL, repeated migrations, record preservation, mismatched/partial schema refusal and lifecycle failure propagation. Latest frontend verification passed all 35 tests, typecheck and build. Coverage includes employee-editor focus/save, current-leader correction and removed/empty-team handling, tab ownership of notification settings, session reset, and calendar dot behavior. Actual local UI verification used the real components with isolated sample data: choosing C updated the preview to C → A → B, Notifications contained webhook rows only, and the calendar dot measured 6px inside a 12px trigger with a 2px date gap. Independent full-diff review found no remaining issues.
+Latest rotation verification passed 59 tests and backend compilation; the existing merge suite passed 158 tests. The explicit event-notification suite passed 7 integration tests. All 7 migration lifecycle tests passed with the two new additive migrations. Those lifecycle tests exercise real CLI commands against isolated PostgreSQL fixtures: empty database builds, legacy adoption, already-applied SQL, repeated migrations, record preservation, mismatched/partial schema refusal and lifecycle failure propagation. Latest frontend verification passed all 42 tests, typecheck and build. Coverage includes employee-editor focus/save, current-leader correction and removed/empty-team handling, tab ownership of notification settings, session reset, and calendar dot behavior. Actual local UI verification used the real components with isolated sample data: choosing C updated the preview to C → A → B, Notifications contained webhook rows only, and the calendar dot measured 6px inside a 12px trigger with a 2px date gap. Independent full-diff review found no remaining issues.
 
 The standard backend test script still fails its 16 pre-existing EmployeeService tests: synchronous SQLite expectations call asynchronous PostgreSQL methods. Backend-wide TypeScript checking also retains existing errors in legacy tests, logger/auth and worklog code; no errors were reported in the new rotation implementation.
 
@@ -61,3 +62,9 @@ Leader notifications show the short card below (with the existing Open Paracal a
 
 🎙️ นาย A จะนำ Daily Meeting ในสัปดาห์นี้
 ```
+
+## Same-day event confirmation
+
+Creating an event never sends automatically. After a successful create, events covering today in Asia/Bangkok open a confirmation dialog. “ส่งแจ้งเตือน” sends the one saved event immediately to distinct enabled event webhooks, ignoring their scheduled time/type; “ไม่ส่งตอนนี้” or dismissal leaves the saved event untouched. Past/future-only events and edits do not open the dialog. Existing scheduled calendar notifications are unchanged and may still include the event later.
+
+Authenticated `POST /events/:id/notify-now` checks the saved event against server-side Bangkok today. It returns `{sent, failed, alreadyClaimed, total}`. No enabled destinations is shown explicitly. Durable unique event/destination claims prevent concurrent or repeated requests from sending twice; failed/uncertain results are not retried automatically, because Teams may already have accepted the message. Sending failure never rolls back event creation. This feature uses migration `20261102090000_event_notification`; rotation skips use `20261102093000_rotation_skips`. Normal dev/build/start applies both automatically.

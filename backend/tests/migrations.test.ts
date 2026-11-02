@@ -65,6 +65,7 @@ describe('automatic database migrations', () => {
       expect((await fixture.db.query(`SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL ORDER BY migration_name`)).rows).toEqual([
         { migration_name: '20260901000000_baseline' }, { migration_name: '20261009100000_daily_meeting_rotation' },
         { migration_name: '20261012120000_daily_leader_start' },
+        { migration_name: '20261102090000_event_notification' }, { migration_name: '20261102093000_rotation_skips' },
       ]);
     } finally { await fixture.close(); }
   }, 60000);
@@ -86,7 +87,7 @@ describe('automatic database migrations', () => {
         { enabled: true, notification_enabled: true, employee_order: [1] },
       ]);
       expect((await fixture.db.query(`SELECT name FROM teams`)).rows).toEqual([{ name: 'Preserved team' }]);
-      expect((await fixture.db.query(`SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL`)).rows).toEqual([{ count: 3 }]);
+      expect((await fixture.db.query(`SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL`)).rows).toEqual([{ count: 5 }]);
     } finally { await fixture.close(); }
   }, 60000);
 

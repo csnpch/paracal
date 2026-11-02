@@ -25,7 +25,7 @@ export function weekOf(date: string): string {
   return moment.utc(date).startOf('isoWeek').format('YYYY-MM-DD');
 }
 
-export function buildAssignments(start: string, end: string, employees: Member[], holidays: string[], snapshots: DailyLeaderAssignment[], anchor?: { weekStart: string; employeeId: number }): DailyLeaderAssignment[] {
+export function buildAssignments(start: string, end: string, employees: Member[], holidays: string[], snapshots: DailyLeaderAssignment[], anchor?: { weekStart: string; employeeId: number }, exclusions?: { fromWeek: string; employeeIds: number[] }): DailyLeaderAssignment[] {
   validateDate(start); validateDate(end);
   const first = moment.utc(weekOf(start));
   const last = moment.utc(weekOf(end));
@@ -44,8 +44,9 @@ export function buildAssignments(start: string, end: string, employees: Member[]
     const saved = published.get(weekStart);
     const previousIndex = eligible.findIndex(e => e.id === previousId);
     const appliesAnchor = anchorPending && weekStart >= anchor!.weekStart;
-    const leader = (appliesAnchor ? eligible.find(e => e.id === anchor!.employeeId) : undefined)
-      ?? eligible[(previousIndex + 1) % eligible.length];
+    const skipped = new Set(exclusions && weekStart >= exclusions.fromWeek ? exclusions.employeeIds : []);
+    const leader = (appliesAnchor ? eligible.find(e => e.id === anchor!.employeeId && !skipped.has(e.id)) : undefined)
+      ?? Array.from({ length: eligible.length }, (_, i) => eligible[(previousIndex + 1 + i) % eligible.length]).find(e => !skipped.has(e.id));
     if (!saved && !leader) continue;
     const assignment = saved ? { ...saved, date } : { weekStart, date, employeeId: leader!.id, employeeName: leader!.name };
     result.push(assignment);
@@ -57,7 +58,7 @@ export function buildAssignments(start: string, end: string, employees: Member[]
   return result;
 }
 
-type StoredConfig = { enabled: boolean; notificationEnabled: boolean; notificationTime: string; startWeek: string; employeeOrder: Prisma.JsonValue; leaderStartWeek: string | null; leaderStartEmployeeId: number | null };
+type StoredConfig = { enabled: boolean; notificationEnabled: boolean; notificationTime: string; startWeek: string; employeeOrder: Prisma.JsonValue; skippedEmployeeIds: Prisma.JsonValue; leaderStartWeek: string | null; leaderStartEmployeeId: number | null };
 type SendLeader = (url: string, assignment: DailyLeaderAssignment) => Promise<{ success: boolean; error?: string }>;
 
 export class DailyRotationService {
@@ -88,10 +89,11 @@ export class DailyRotationService {
         else holidays.delete(date);
       }
     }
-    const snapshots = stored.filter(s => s.employeeId !== null).map(s => ({ ...s, employeeId: s.employeeId!, employeeName: s.employeeName! }));
+    const skipped = new Set(cfg.skippedEmployeeIds as number[]);
+    const snapshots = stored.filter(s => s.employeeId !== null && (s.weekStart < currentWeek || (s.weekStart === currentWeek && currentClaimed) || !skipped.has(s.employeeId))).map(s => ({ ...s, employeeId: s.employeeId!, employeeName: s.employeeName! }));
     const anchor = cfg.leaderStartWeek && cfg.leaderStartEmployeeId !== null
       ? { weekStart: cfg.leaderStartWeek, employeeId: cfg.leaderStartEmployeeId } : undefined;
-    const result = buildAssignments(cfg.startWeek, end, members, [...holidays], snapshots, anchor);
+    const result = buildAssignments(cfg.startWeek, end, members, [...holidays], snapshots, anchor, { fromWeek: currentWeek, employeeIds: [...skipped] });
     if (persist) {
       for (const week = moment.utc(cfg.startWeek); week.format('YYYY-MM-DD') <= weekOf(end) && week.format('YYYY-MM-DD') <= currentWeek; week.add(1, 'week')) {
         const weekStart = week.format('YYYY-MM-DD');
@@ -111,18 +113,19 @@ export class DailyRotationService {
     const preview = await this.prisma.$transaction(tx => this.collect(tx, cfg, end, false), { timeout: 30000 });
     const currentWeekStart = weekOf(this.today());
     const nextWeekStart = moment.utc(currentWeekStart).add(1, 'week').format('YYYY-MM-DD');
+    const skippedEmployeeIds = (cfg.skippedEmployeeIds as number[]).filter(id => employees.some(e => e.id === id));
     const pendingAnchor = cfg.leaderStartWeek && cfg.leaderStartEmployeeId !== null
-      && employees.some(e => e.id === cfg.leaderStartEmployeeId)
+      && employees.some(e => e.id === cfg.leaderStartEmployeeId) && !skippedEmployeeIds.includes(cfg.leaderStartEmployeeId)
       && !preview.some(a => a.weekStart >= cfg.leaderStartWeek! && a.weekStart < nextWeekStart)
       ? cfg.leaderStartEmployeeId : null;
     const pendingCurrentAnchor = cfg.leaderStartWeek && cfg.leaderStartEmployeeId !== null
-      && employees.some(e => e.id === cfg.leaderStartEmployeeId)
+      && employees.some(e => e.id === cfg.leaderStartEmployeeId) && !skippedEmployeeIds.includes(cfg.leaderStartEmployeeId)
       && !preview.some(a => a.weekStart >= cfg.leaderStartWeek! && a.weekStart < currentWeekStart)
       ? cfg.leaderStartEmployeeId : null;
     return { enabled: true, notificationEnabled: cfg.notificationEnabled, notificationTime: cfg.notificationTime, startWeek: cfg.startWeek,
       currentWeekStart, currentLeaderEmployeeId: preview.find(a => a.weekStart >= currentWeekStart)?.employeeId ?? pendingCurrentAnchor,
       nextWeekStart, nextLeaderEmployeeId: preview.find(a => a.weekStart >= nextWeekStart)?.employeeId ?? pendingAnchor,
-      employeeOrder: reconcileOrder(cfg.employeeOrder as number[], employees),
+      skippedEmployeeIds, employeeOrder: reconcileOrder(cfg.employeeOrder as number[], employees),
       employees: employees.map(e => ({ ...e, createdAt: e.createdAt.toISOString(), updatedAt: e.updatedAt.toISOString() })),
       preview: preview.filter(a => a.weekStart >= start) };
   }
@@ -141,10 +144,15 @@ export class DailyRotationService {
       if (updates.currentLeaderEmployeeId !== undefined && updates.nextLeaderEmployeeId !== undefined) {
         throw new DailyRotationValidationError('Choose either the current week or next week');
       }
+      if (updates.skippedEmployeeIds !== undefined && (new Set(updates.skippedEmployeeIds).size !== updates.skippedEmployeeIds.length || updates.skippedEmployeeIds.some(id => !Number.isInteger(id) || !employees.some(e => e.id === id)))) {
+        throw new DailyRotationValidationError('Skipped users must be unique current employees');
+      }
+      const effectiveSkipped = updates.skippedEmployeeIds ?? cfg.skippedEmployeeIds as number[];
       const selectedLeaderId = updates.currentLeaderEmployeeId ?? updates.nextLeaderEmployeeId;
       if (selectedLeaderId !== undefined && (!Number.isInteger(selectedLeaderId) || !employees.some(e => e.id === selectedLeaderId))) {
         throw new DailyRotationValidationError('Selected leader must be a current employee');
       }
+      if (selectedLeaderId !== undefined && effectiveSkipped.includes(selectedLeaderId)) throw new DailyRotationValidationError('Selected leader is skipped');
       if (updates.employeeOrder) {
         const ids = updates.employeeOrder;
         if (ids.length !== employees.length || new Set(ids).size !== ids.length || ids.some(id => !employees.some(e => e.id === id))) throw new DailyRotationValidationError('Order must include each current employee exactly once');
@@ -197,7 +205,7 @@ export class DailyRotationService {
       const cfg = (await tx.dailyRotationConfig.findUnique({ where: { id: 1 } }))!;
       if (!cfg.notificationEnabled || cfg.notificationTime !== time.format('HH:mm')) return [];
       const assignment = (await this.collect(tx, cfg, date, true)).find(a => a.date === date);
-      if (!assignment) return [];
+      if (!assignment || (cfg.skippedEmployeeIds as number[]).includes(assignment.employeeId)) return [];
       const targets = await tx.cronjobConfig.findMany({ where: { dailyLeaderEnabled: true }, orderBy: { id: 'asc' } });
       const claimedTargets = [];
       for (const target of targets) {

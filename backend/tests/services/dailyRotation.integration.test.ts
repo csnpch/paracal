@@ -28,6 +28,7 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     for (const sql of migration.split(';').map(s => s.trim()).filter(Boolean)) await fixture.prisma.$executeRawUnsafe(sql);
     const anchorMigration = await Bun.file(new URL('../../prisma/migrations/20261012120000_daily_leader_start/migration.sql', import.meta.url)).text();
     await fixture.prisma.$executeRawUnsafe(anchorMigration);
+    await fixture.prisma.$executeRawUnsafe(await Bun.file(new URL('../../prisma/migrations/20261102093000_rotation_skips/migration.sql', import.meta.url)).text());
     webhook = Bun.serve({ port: 0, fetch: async req => { payloads.push(await req.json()); return new Response('accepted'); } });
   });
   beforeEach(async () => {
@@ -48,6 +49,59 @@ describe('daily rotation with real PostgreSQL and local webhook', () => {
     name, enabled, scheduleTime: '17:00', webhookUrl: webhook.url.toString(), dailyLeaderEnabled: true,
   } });
   const monday = new Date('2026-10-12T02:00:00Z');
+
+  test('retains skipped employees in queue but excludes them from current and future calculation after restart', async () => {
+    await configure();
+    const settings = await service.updateSettings({ skippedEmployeeIds: [2] });
+    expect(settings).toMatchObject({ skippedEmployeeIds: [2], employeeOrder: [1, 2, 3] });
+    expect(await fixture.prisma.employee.count()).toBe(3);
+    expect((await new DailyRotationService(fixture.prisma).getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 3]);
+  });
+  test('skips an unsent current leader while preserving historical assignments', async () => {
+    await configure(); moment.now = () => monday.getTime();
+    await service.updateSettings({ skippedEmployeeIds: [2] });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 3, 1, 3]);
+    expect((await service.getSettings()).currentLeaderEmployeeId).toBe(3);
+  });
+  test('keeps a claimed current leader historical and skips them on subsequent rounds', async () => {
+    await configure(); await subscribe(); moment.now = () => monday.getTime();
+    await service.dispatchDue(monday); await service.updateSettings({ skippedEmployeeIds: [2] });
+    expect((await service.getAssignments('2026-10-05', '2026-11-06')).map((a: any) => a.employeeId)).toEqual([1, 2, 3, 1, 3]);
+    await service.dispatchDue(monday); expect(payloads).toHaveLength(1);
+  });
+  test('all users skipped produces no assignments or sends and resuming restores original queue position', async () => {
+    await configure(); await subscribe(); moment.now = () => monday.getTime();
+    await service.updateSettings({ skippedEmployeeIds: [1, 2, 3] });
+    expect(await service.getAssignments('2026-10-12', '2026-10-30')).toEqual([]);
+    expect((await service.getSettings()).currentLeaderEmployeeId).toBeNull();
+    await service.dispatchDue(monday); expect(payloads).toHaveLength(0);
+    await service.updateSettings({ skippedEmployeeIds: [2] });
+    expect((await service.getAssignments('2026-10-12', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([3, 1, 3]);
+    await service.updateSettings({ skippedEmployeeIds: [] });
+    // The restored user rejoins after this week's already selected C.
+    expect((await service.getAssignments('2026-10-12', '2026-11-06')).map((a: any) => a.employeeId)).toEqual([3, 1, 2, 3]);
+  });
+  test('skipped pending anchors and the last queue member do not break the circular successor', async () => {
+    await configure(); await service.updateSettings({ nextLeaderEmployeeId: 3 });
+    await service.updateSettings({ skippedEmployeeIds: [3] });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 2, 1, 2]);
+    moment.now = () => monday.getTime(); await service.updateSettings({ skippedEmployeeIds: [1, 2] });
+    expect((await service.getAssignments('2026-10-05', '2026-10-30')).map((a: any) => a.employeeId)).toEqual([1, 3, 3, 3]);
+  });
+  test('validates skipped IDs and rejects selecting an excluded leader atomically', async () => {
+    await configure();
+    for (const skippedEmployeeIds of [[0], [1.5], [999], [2, 2]]) await expect(service.updateSettings({ skippedEmployeeIds })).rejects.toThrow('Skipped users must be unique current employees');
+    await service.updateSettings({ skippedEmployeeIds: [2] });
+    for (const selection of [{ currentLeaderEmployeeId: 2 }, { nextLeaderEmployeeId: 2 }]) await expect(service.updateSettings(selection)).rejects.toThrow('Selected leader is skipped');
+    await expect(service.updateSettings({ skippedEmployeeIds: [3], currentLeaderEmployeeId: 3 })).rejects.toThrow('Selected leader is skipped');
+    expect((await service.getSettings()).skippedEmployeeIds).toEqual([2]);
+  });
+  test('admin API stores skips and default settings include an empty skipped list', async () => {
+    expect((await service.getSettings()).skippedEmployeeIds).toEqual([]);
+    const app = routeModule.createDailyRotationRoutes(service);
+    const response = await app.handle(new Request('http://localhost/daily-rotation', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${createAdminSession()}` }, body: JSON.stringify({ skippedEmployeeIds: [2] }) }));
+    expect(response.status).toBe(200); expect((await response.json()).data.skippedEmployeeIds).toEqual([2]);
+  });
 
   test('rotation is always active for legacy disabled configs and ignores the removed enable switch', async () => {
     await fixture.prisma.dailyRotationConfig.create({ data: { id: 1, enabled: false, startWeek: '2026-10-05' } });

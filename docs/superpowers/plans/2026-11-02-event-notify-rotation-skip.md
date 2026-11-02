@@ -29,16 +29,18 @@
 ### Task 1: Explicit same-day notification
 **Files:** New eventNotificationService.ts, eventNotifications.ts route, integration tests; Prisma schema/additive migration; frontend api + CalendarEvents + EventNotificationDialog + tests.
 **Interfaces:** POST /events/:id/notify-now returns ApiResponse<EventNotificationResult {sent,failed,alreadyClaimed,total}>; service notify(eventId:number) validates and claims. Popup consumes created Event, closes independently of creation form.
-- [ ] RED: real saved event today/range/Bangkok boundary, future/past/missing rejects, auth, duplicate calls/destinations, disabled/no targets, failed webhook preserves event.
-- [ ] Implement schema + minimal service/route and explicit API call; register route without altering event creation.
-- [ ] RED UI: no send before confirmation; today-only post-create popup, dismiss, success/failure, non-today and edits excluded.
-- [ ] Implement confirmation component and calendar integration; verify targeted suites and commit.
+- [x] RED: real saved event today/range/Bangkok boundary, future/past/missing rejects, auth, duplicate calls/destinations, disabled/no targets, failed webhook preserves event.
+- [x] Implement schema + minimal service/route and explicit API call; register route without altering event creation.
+- [x] RED UI: no send before confirmation; today-only post-create popup, dismiss, success/failure, non-today and edits excluded.
+- [x] Implement confirmation component and calendar integration; verify targeted suites and commit.
 
 ### Task 2: Skip rotation users
 **Files:** Rotation schema migration, service/routes/shared types, DailyRotationPanel, backend integration and frontend config tests, docs.
 **Interfaces:** GET/PUT rotation settings adds skippedEmployeeIds:number[]. List retains all users; selection excludes skipped users. PUT validates unique existing IDs and selected leader conflicts atomically.
-- [ ] RED: skip B in A/B/C yields A/C/A/C with B and historical records retained; skip current unsent advances; claimed current preserved; all skipped no events/sends; resume original order; invalid IDs and excluded selection reject; restart persists.
-- [ ] Implement config persistence and candidate selection with full cursor order and past/claim preservation.
-- [ ] RED UI: row skip/resume and state, selector excludes skipped users, empty eligible queue message.
-- [ ] Implement per-row skip action and visible badge; refresh preview through existing settings API.
-- [ ] Verify full frontend, rotation/new notifications/merge/migrations, compile/build and standard backend tests (report known EmployeeService failures). Browser-check real components using sample data, review entire diff, publish authorized dev/main and verify deployments.
+- [x] RED: skip B in A/B/C yields A/C/A/C with B and historical records retained; skip current unsent advances; claimed current preserved; all skipped no events/sends; resume original order; invalid IDs and excluded selection reject; restart persists.
+- [x] Implement config persistence and candidate selection with full cursor order and past/claim preservation.
+- [x] RED UI: row skip/resume and state, selector excludes skipped users, empty eligible queue message.
+- [x] Implement per-row skip action and visible badge; refresh preview through existing settings API.
+- [x] Verify full frontend, rotation/new notifications/merge/migrations, compile/build and standard backend tests (report known EmployeeService failures). Browser-check real components using sample data, review entire diff, publish authorized dev/main and verify deployments.
+
+Implementation, full verification and review complete. Publication/deployment checks follow as the final execution step.

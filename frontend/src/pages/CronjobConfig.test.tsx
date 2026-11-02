@@ -24,7 +24,7 @@ vi.mock('../components/Layout', () => ({ Layout: ({ children }: { children: Reac
 vi.mock('../contexts/ThemeContext', () => ({ useTheme: () => ({ theme: 'dark' }) }));
 vi.mock('../hooks/use-toast', () => ({ toast: vi.fn() }));
 
-const settings = { enabled: true, notificationEnabled: true, notificationTime: '09:00', startWeek: '2026-10-05', currentWeekStart: '2026-10-05', currentLeaderEmployeeId: 1, nextWeekStart: '2026-10-12', nextLeaderEmployeeId: 2, employeeOrder: [1, 2, 3], employees: [1, 2, 3].map((id, i) => ({ id, name: ['A', 'B', 'C'][i], createdAt: `2026-01-0${id}`, updatedAt: `2026-01-0${id}` })), preview: [] };
+const settings = { enabled: true, notificationEnabled: true, notificationTime: '09:00', startWeek: '2026-10-05', currentWeekStart: '2026-10-05', currentLeaderEmployeeId: 1, nextWeekStart: '2026-10-12', nextLeaderEmployeeId: 2, employeeOrder: [1, 2, 3], skippedEmployeeIds: [], employees: [1, 2, 3].map((id, i) => ({ id, name: ['A', 'B', 'C'][i], createdAt: `2026-01-0${id}`, updatedAt: `2026-01-0${id}` })), preview: [] };
 const config = { id: 1, name: 'Team', enabled: true, daily_leader_enabled: false, schedule_time: '09:00', notification_type: 'daily', notification_days: 0, webhook_url: 'https://example.test/hook', created_at: '2026-01-01', updated_at: '2026-01-01' };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -77,7 +77,7 @@ describe('daily rotation configuration user flows', () => {
     expect(preview.getByText('2026-10-05 • event วันที่ 2026-10-05')).toBeTruthy();
     expect(preview.getByText('C')).toBeTruthy();
     expect(preview.getByText('A')).toBeTruthy();
-    expect(screen.getAllByRole('listitem').slice(0, 3).map(item => item.textContent)).toEqual(['1A', '2B', '3C']);
+    expect(screen.getAllByRole('listitem').slice(0, 3).map(item => item.textContent)).toEqual(['1Aข้าม', '2Bข้าม', '3Cข้าม']);
   });
   it('disables current-leader selection when the team is empty', async () => {
     api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, employees: [], employeeOrder: [], currentLeaderEmployeeId: null } });
@@ -148,4 +148,24 @@ describe('daily rotation configuration user flows', () => {
     expect(card.getByText('พักการแจ้งเตือน')).toBeTruthy();
     expect(card.getByRole('switch', { name: 'การแจ้งเตือนผู้นำ daily meeting' }).getAttribute('aria-checked')).toBe('true');
   });
+});
+
+it('skips a member without removing or reordering the queue and can resume them', async () => {
+  const user = userEvent.setup(); render(<CronjobConfig />);
+  await user.click(await screen.findByRole('tab', { name: 'Daily Rotation' }));
+  await user.click(screen.getByRole('button', { name: 'ข้าม B' }));
+  await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenCalledWith({ skippedEmployeeIds: [2] }));
+  expect(await screen.findByText('ข้ามอยู่')).toBeTruthy();
+  await user.click(screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์นี้' }));
+  expect(screen.queryByRole('option', { name: 'B' })).toBeNull();
+  await user.keyboard('{Escape}');
+  await user.click(screen.getByRole('button', { name: 'กลับเข้ารอบ B' }));
+  await waitFor(() => expect(api.updateDailyRotationSettings).toHaveBeenLastCalledWith({ skippedEmployeeIds: [] }));
+  expect(screen.getByRole('button', { name: 'ข้าม B' })).toBeTruthy();
+});
+it('explains that all users are skipped and disables current selection', async () => {
+  api.getDailyRotationSettings.mockResolvedValue({ success: true, data: { ...settings, skippedEmployeeIds: [1, 2, 3], currentLeaderEmployeeId: null } });
+  const user = userEvent.setup(); render(<CronjobConfig />); await user.click(await screen.findByRole('tab', { name: 'Daily Rotation' }));
+  expect(await screen.findByText('ข้ามผู้ใช้ทุกคนอยู่ จึงยังไม่มีผู้นำในรอบนี้')).toBeTruthy();
+  expect(screen.getByRole('combobox', { name: 'เลือกผู้นำสัปดาห์นี้' }).hasAttribute('disabled')).toBe(true);
 });
