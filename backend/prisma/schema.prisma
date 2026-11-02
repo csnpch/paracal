@@ -30,6 +30,8 @@ model Event {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
+  notificationDeliveries EventNotificationDelivery[]
+
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
@@ -138,4 +140,16 @@ model ActivityLog {
   @@index([entity])
   @@index([action])
   @@map("activity_logs")
+}
+
+model EventNotificationDelivery {
+  id         Int      @id @default(autoincrement())
+  eventId    Int      @map("event_id")
+  webhookKey String   @map("webhook_key")
+  status     String   @default("claimed")
+  createdAt  DateTime @default(now()) @map("created_at")
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, webhookKey])
+  @@map("event_notification_deliveries")
 }

@@ -155,3 +155,10 @@ export interface ApiResponse<T> {
   error?: string;
   message?: string;
 }
+
+export interface EventNotificationResult {
+  sent: number;
+  failed: number;
+  alreadyClaimed: number;
+  total: number;
+}

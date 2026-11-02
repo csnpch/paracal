@@ -225,3 +225,5 @@ export const testCronjobNotification = async (
 ): Promise<ApiResponse<null>> => {
   return apiClient.post<ApiResponse<null>>(`/cronjobs/${id}/test`, { customMessage });
 };
+
+export const notifyEventNow = (id: number) => apiClient.post<ApiResponse<import('../../../shared/types').EventNotificationResult>>(`/events/${id}/notify-now`, {});

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CalendarGrid } from '@/components/CalendarGrid';
+import { EventNotificationDialog } from '@/components/EventNotificationDialog';
 import { EventModal } from '@/components/EventModal';
 import { EventDetailsModal } from '@/components/EventDetailsModal';
 import { CompanyHolidayModal } from '@/components/CompanyHolidayModal';
@@ -47,6 +48,7 @@ const CalendarEvents = () => {
   );
   const [selectedWorklogAuthorId, setSelectedWorklogAuthorId] = useState(getStoredWorklogAuthorId);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [notificationEvent, setNotificationEvent] = useState<Event | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isCompanyHolidayModalOpen, setIsCompanyHolidayModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -336,7 +338,7 @@ const CalendarEvents = () => {
           description: `${eventData.employeeName} — ${leaveLabel}${durationSuffix}`,
         });
       } else {
-        await addEvent({
+        const createdEvent = await addEvent({
           employeeId: eventData.employeeId,
           employeeName: eventData.employeeName,
           leaveType: eventData.leaveType as any,
@@ -345,6 +347,10 @@ const CalendarEvents = () => {
           endDate: eventData.endDate,
           description: eventData.description
         });
+        const today = moment().utcOffset('+07:00').format('YYYY-MM-DD');
+        const start = createdEvent.startDate ?? createdEvent.date;
+        const end = createdEvent.endDate ?? createdEvent.date;
+        if (start && end && start <= today && end >= today) setNotificationEvent(createdEvent);
         toast({
           title: 'บันทึกเหตุการณ์เรียบร้อย',
           description: `${eventData.employeeName} — ${leaveLabel}${durationSuffix}`,
@@ -647,6 +653,8 @@ const CalendarEvents = () => {
           </div>
         )}
       </div>
+
+      <EventNotificationDialog event={notificationEvent} onClose={() => setNotificationEvent(null)} />
 
       {/* Event Creation Modal */}
       <EventModal

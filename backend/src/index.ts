@@ -5,6 +5,7 @@ import { cron } from '@elysiajs/cron';
 
 import { employeesRoutes } from './routes/employees';
 import { eventsRoutes } from './routes/events';
+import { eventNotificationRoutes } from './routes/eventNotifications';
 import { holidaysRoutes } from './routes/holidays';
 import { companyHolidaysRoutes } from './routes/companyHolidays';
 import { cronjobRoutes } from './routes/cronjobs';
@@ -107,6 +108,7 @@ async function startServer() {
     }))
     .use(employeesRoutes)
     .use(eventsRoutes)
+    .use(eventNotificationRoutes)
     .use(holidaysRoutes)
     .use(companyHolidaysRoutes)
     .use(cronjobRoutes)
